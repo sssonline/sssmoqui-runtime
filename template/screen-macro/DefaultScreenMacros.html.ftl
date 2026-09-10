@@ -2328,7 +2328,11 @@ a => A, d => D, y => Y
                     $.ajax({ type:"POST", url:"${defUrlInfo.url}", data:{ moquiSessionToken: "${(ec.getWeb().sessionToken)!}"<#rt>
                             <#t><#list depNodeList as depNode><#local depNodeField = depNode["@field"]><#local _void = defUrlParameterMap.remove(depNodeField)!>, "${depNode["@parameter"]!depNodeField}": $("#<@fieldIdByName depNodeField/>").val()</#list>
                             <#t><#list defUrlParameterMap.keySet() as parameterKey><#if defUrlParameterMap.get(parameterKey)?has_content>, "${parameterKey}":"${defUrlParameterMap.get(parameterKey)}"</#if></#list>
-                            <#t>}, dataType:"text", success:function(defaultText) {   $('#${id}').val(defaultText);  } });
+                            <#t>}, dataType:"text", success:function(defaultText) {
+                                <#-- only overwrite when the lookup actually found a value: an empty response
+                                     (no match) must not clear what the user already typed, e.g. a new feature's
+                                     abbrev when the Feature Type changes (card #1017) -->
+                                if (defaultText && defaultText.length) { $('#${id}').val(defaultText); } } });
                 }
                 <#list depNodeList as depNode>
                 $("#<@fieldIdByName depNode["@field"]/>").on('change', function() { populate_${id}(); });

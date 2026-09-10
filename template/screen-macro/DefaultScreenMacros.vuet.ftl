@@ -2134,7 +2134,11 @@ ${sri.getFieldValueString(.node)?html}</textarea>
                     $.ajax({ type:"POST", url:"${defUrlInfo.url}", data:{ moquiSessionToken: "${(ec.getWeb().sessionToken)!}"<#rt>
                             <#t><#list depNodeList as depNode><#local depNodeField = depNode["@field"]><#local _void = defUrlParameterMap.remove(depNodeField)!>, "${depNode["@parameter"]!depNodeField}": $("#<@fieldIdByName depNodeField/>").val()</#list>
                             <#t><#list defUrlParameterMap.keySet() as parameterKey><#if defUrlParameterMap.get(parameterKey)?has_content>, "${parameterKey}":"${defUrlParameterMap.get(parameterKey)}"</#if></#list>
-                            <#t>}, dataType:"text", success:function(defaultText) {   $('#${tlId}').val(defaultText);  } });
+                            <#t>}, dataType:"text", success:function(defaultText) {
+                                <#-- only overwrite when the lookup actually found a value: an empty response
+                                     (no match) must not clear what the user already typed, e.g. a new feature's
+                                     abbrev when the Feature Type changes (card #1017) -->
+                                if (defaultText && defaultText.length) { $('#${tlId}').val(defaultText); } } });
                 }
                 <#list depNodeList as depNode>
                 $("#<@fieldIdByName depNode["@field"]/>").on('change', function() { populate_${tlId}(); });
@@ -2388,6 +2392,10 @@ ${sri.getFieldValueString(.node)?html}</textarea>
 
 <#-- initialize from current bound field value when editing existing records -->
 <#assign mlCtxVal = ec.context.get(mlFieldName)!"" >
+<#-- in an editable multi-row form-list the posted name carries the row suffix (equivalentQuantity_0) but the
+     row map is pushed into context under the plain field name, so the suffixed lookup finds nothing and an
+     existing value never seeded; fall back to the plain name (card #1018) -->
+<#if !mlCtxVal?has_content && isMulti?exists && isMulti><#assign mlCtxVal = ec.context.get(.node?parent?parent["@name"])!"" ></#if>
 <#assign mlInitExpr = "">
 <#assign mlInitHidden = '{"percentMode":false,"result":null,"percentResults":[]}'>
 
