@@ -2118,6 +2118,7 @@ ${sri.getFieldValueString(.node)?html}</textarea>
             <#t><#if validationClasses?contains("required")> required</#if><#if regexpInfo?has_content> pattern="${regexpInfo.regexp}" data-msg-pattern="${regexpInfo.message!"Invalid format"}"</#if>
             <#t><#if .node?parent["@tooltip"]?has_content> data-toggle="tooltip" title="${ec.getResource().expand(.node?parent["@tooltip"], "")}"</#if>
             <#t><#if .node["@placeholder"]?has_content> placeholder="${ec.getResource().expand(.node["@placeholder"], "")?html}"</#if>
+            <#t><#if .node["@submit-on-blur"]! == "true"> onfocus="moqui.submitOnBlurFocus(this)" onblur="moqui.submitOnBlur(this)"</#if>
             <#t><#if ownerForm?has_content> form="${ownerForm}"</#if>>
         <#assign expandedMask = ec.getResource().expandNoL10n(.node["@mask"], "")!>
         <#if expandedMask?has_content><m-script>$('#${tlId}').inputmask("${expandedMask}");</m-script></#if>

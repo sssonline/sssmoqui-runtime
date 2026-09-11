@@ -158,6 +158,18 @@ moqui.handleLoadError = function (jqXHR, textStatus, errorThrown) {
     moqui.webrootVue.loading = 0;
     moqui.handleAjaxError(jqXHR, textStatus, errorThrown);
 };
+/* text-line submit-on-blur (xml-form-3.xsd, card #963): remember the value on focus and submit the input's owning
+   form on blur only when the value changed. The owning form is resolved through the input's form association
+   (input.form honors the form="" attribute form-list rows use), and the submit is a synthetic cancelable 'submit'
+   event so the m-form component's @submit.prevent="submitForm" handler runs exactly as a button click would. */
+moqui.submitOnBlurFocus = function(inputEl) { inputEl.setAttribute('data-blur-prev', inputEl.value); };
+moqui.submitOnBlur = function(inputEl) {
+    if (inputEl.value === inputEl.getAttribute('data-blur-prev')) return;
+    inputEl.setAttribute('data-blur-prev', inputEl.value);
+    var formEl = inputEl.form || $(inputEl).closest('form')[0];
+    if (!formEl) { console.warn('submit-on-blur: no owning form for input ' + inputEl.name); return; }
+    formEl.dispatchEvent(new Event('submit', { bubbles:true, cancelable:true }));
+};
 // NOTE: this may eventually split to change the activeSubscreens only on currentPathList change (for screens that support it)
 //     and if ever needed some sort of data refresh if currentParameters changes
 moqui.loadComponent = function(urlInfo, callback, divId) {
@@ -1402,6 +1414,7 @@ moqui.webrootVue = new Vue({
             url = this.getLinkPath(url);
             // console.info('setting url ' + url + ', cur ' + this.currentLinkUrl);
             if (this.currentLinkUrl === url && url !== this.linkBasePath) {
+                this.reloadMenuData();
                 this.reloadSubscreens(); /* console.info('reloading, same url ' + url); */
             } else {
                 var href = url;
@@ -1473,6 +1486,21 @@ moqui.webrootVue = new Vue({
             // setting pathName here handles initial load of subscreens-active; this may be undefined if we have more activeSubscreens than currentPathList items
             saComp.loadActive();
             this.activeSubscreens.push(saComp);
+        },
+        reloadMenuData: function() {
+            // re-fetch nav menu for the current screen; needed on same-URL reloads (e.g. after a form save)
+            // because tab visibility can depend on screen state (required-parameter subscreens, pre-actions)
+            var srch = this.currentSearch;
+            var screenUrl = this.currentPath + (srch.length > 0 ? '?' + srch : '');
+            if (!screenUrl || screenUrl.length === 0) return;
+            var vm = this;
+            var menuDataUrl = this.appRootPath && this.appRootPath.length && screenUrl.indexOf(this.appRootPath) === 0 ?
+                this.appRootPath + "/menuData" + screenUrl.slice(this.appRootPath.length) : "/menuData" + screenUrl;
+            $.ajax({ type:"GET", url:menuDataUrl, dataType:"text", error:moqui.handleAjaxError, success: function(outerListText) {
+                var outerList = null;
+                try { outerList = JSON.parse(outerListText); } catch (e) { console.info("Error parsing menu list JSON: " + e); }
+                if (outerList && moqui.isArray(outerList)) { vm.navMenuList = outerList; }
+            }});
         },
         reloadSubscreens: function() {
             // console.info('reloadSubscreens path ' + JSON.stringify(this.currentPathList) + ' currentParameters ' + JSON.stringify(this.currentParameters) + ' currentSearch ' + this.currentSearch);
