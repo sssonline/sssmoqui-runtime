@@ -2443,6 +2443,9 @@ autocapitalize="off" autocomplete="off"
 <#if (mlDisabled?lower_case == "true")> disabled="disabled"</#if>
 <#if (mlReadOnly?lower_case == "true")> readonly="readonly"</#if>
 <#if mlTooltip?has_content> data-toggle="tooltip" title="${mlTooltip?html}"</#if>
+<#-- card #1030: same owner-form association the text-line gets, so Enter in a form-list first-row
+     math-line reaches the m-form's implicit submission (the field sits in a <td>, outside the form) -->
+<#if ownerForm?has_content> form="${ownerForm}"</#if>
 
 data-ml-field="${mlFieldName?html}"
 <#-- jquery-validate hook: blocks m-form/form-link saves while the entry is invalid (card #947);
@@ -2484,6 +2487,7 @@ title="Toggle percent mode: compute this expression as a percent of the selected
 <input type="hidden"
 class="math-line-value"
 name="${mlFieldName?html}"
+<#if ownerForm?has_content> form="${ownerForm}"</#if>
 value='${mlInitHidden?html}'/>
   </div>
 </div>
