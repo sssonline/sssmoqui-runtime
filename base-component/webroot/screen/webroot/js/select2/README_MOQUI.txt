@@ -46,3 +46,15 @@ This avoids certain user error and makes it possible to use a barcode scanner.
 
 20201105 DEJ:
 Also ignore TAB if options are loading.
+
+20260921 SSS (card 1043):
+ENTER is DEFERRED instead of dropped when results are loading or stale
+(pendingEnterSelect, replayed by a results:all handler in _registerEvents
+once the results for the term in the search box have been highlighted;
+cleared on close). The guarded ENTER branch always calls preventDefault():
+dropdown/search latches isDefaultPrevented() into _keyUpPrevented, so a
+bare return let the ENTER keyup re-trigger the query and restart the load.
+ajaxResultsLoading is now set when the debounced request is scheduled (not
+only when its timer fires) and cleared on the failure/abort path (it was
+only ever cleared on success, leaving a dropdown ENTER/TAB-deaf after one
+failed request). lastKeyTime resets on open. TAB branch unchanged.

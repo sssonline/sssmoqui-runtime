@@ -3486,6 +3486,8 @@ S2.define('select2/data/ajax',[
 
     function request () {
       // DEJ 20200408 next line: if no options and/or options are loading ignore ENTER
+      // (card 1043: also set when the debounced request is SCHEDULED, below, so the flag is
+      // true for the whole stale window, not only once the timer fires)
       self.options.set('ajaxResultsLoading', true);
 
       var $request = options.transport(options, function (data) {
@@ -3505,6 +3507,12 @@ S2.define('select2/data/ajax',[
         // DEJ 20200408 next line: if no options and/or options are loading ignore ENTER
         self.options.set('ajaxResultsLoading', false);
       }, function () {
+        // card 1043: a failed or aborted request must not leave the dropdown ENTER/TAB-deaf
+        // for the rest of the page's life (an abort is immediately followed by a new request,
+        // which sets the flag true again)
+        self.options.set('ajaxResultsLoading', false);
+        self.options.set('pendingEnterSelect', false);
+
         // Attempt to detect if a request was aborted
         // Only works if the transport exposes a status property
         if ($request.status && $request.status === '0') {
@@ -3524,6 +3532,9 @@ S2.define('select2/data/ajax',[
         window.clearTimeout(this._queryTimeout);
       }
 
+      // card 1043: results are stale from the moment a new term is typed, not from when the
+      // debounce timer fires — flag it now so an ENTER in that gap is deferred, not selected stale
+      self.options.set('ajaxResultsLoading', true);
       this._queryTimeout = window.setTimeout(request, this.ajaxOptions.delay);
     } else {
       request();
@@ -5347,10 +5358,14 @@ S2.define('select2/core',[
 
     this.on('open', function () {
       self.$container.addClass('select2-container--open');
+      // card 1043: the typing-debounce below measures within one dropdown session
+      self.options.set('lastKeyTime', 0);
     });
 
     this.on('close', function () {
       self.$container.removeClass('select2-container--open');
+      // card 1043: a deferred ENTER never outlives the dropdown it was pressed in
+      self.options.set('pendingEnterSelect', false);
     });
 
     this.on('enable', function () {
@@ -5385,6 +5400,31 @@ S2.define('select2/core',[
           query: params
         });
       });
+    });
+
+    // card 1043: an ENTER pressed while results were loading or stale was DEFERRED by the keypress
+    // handler below (not dropped); replay it once the results for the term now in the search box
+    // have landed and the Results adapter (bound before this handler) has highlighted the first row.
+    // Results for an older term never commit: the response is ignored unless it matches the box.
+    function commitPendingEnter () {
+      if (!self.options.get('pendingEnterSelect')) return;
+      if (!self.isOpen() || self.options.get('ajaxResultsLoading')) return;
+      self.options.set('pendingEnterSelect', false);
+      if (self.results.getHighlightedResults().length < 1) return;
+
+      // same commit path as the ENTER branch below
+      self.options.set('okToSelectOnClose', true);
+      self.close();
+      self.options.set('okToSelectOnClose', false);
+      self.$element[0].focus();
+    }
+    this.on('results:all', function (params) {
+      if (!self.options.get('pendingEnterSelect')) return;
+      var $search = (self.dropdown && self.dropdown.$search) || (self.selection && self.selection.$search);
+      var current = ($search && $search.length) ? ($search.val() || '') : '';
+      var returned = (params && params.query && params.query.term != null) ? params.query.term : '';
+      if (current !== returned) return;
+      commitPendingEnter();
     });
 
     this.on('keypress', function (evt) {
@@ -5452,9 +5492,26 @@ S2.define('select2/core',[
 
           evt.preventDefault();
         } else if (key === KEYS.ENTER) {
-          // DEJ 20200408 next 2 lines: if no options and/or options are loading ignore ENTER, if < 500ms since last keypress ignore ENTER
-          if (self.results.getHighlightedResults().length < 1) { return; }
-          if (self.options.get('ajaxResultsLoading') || (Date.now() - lastKeyTime) < 500) { return; }
+          // DEJ 20200408: if no options and/or options are loading ignore ENTER, if < 500ms since last keypress ignore ENTER.
+          // card 1043: the guards now DEFER the ENTER (pendingEnterSelect, replayed by the results:all
+          // handler above) instead of dropping it, and always preventDefault(): dropdown/search latches
+          // evt.isDefaultPrevented() into _keyUpPrevented, so a bare return let the ENTER keyup re-fire
+          // handleSearch -> 'query', restarting the very load that made the guard trip (an Enter loop).
+          var enterLoading = self.options.get('ajaxResultsLoading');
+          var enterHighlighted = self.results.getHighlightedResults().length > 0;
+          var enterSinceKey = Date.now() - lastKeyTime;
+          if (!enterHighlighted || enterLoading || enterSinceKey < 500) {
+            self.options.set('pendingEnterSelect', true);
+            evt.preventDefault();
+            if (enterHighlighted && !enterLoading) {
+              // results are already fresh (nothing is loading, so no results:all will arrive to
+              // replay this); only the typing-debounce blocked it — settle once the window passes
+              if (self._pendingEnterTimeout) window.clearTimeout(self._pendingEnterTimeout);
+              self._pendingEnterTimeout = window.setTimeout(commitPendingEnter, (500 - enterSinceKey) + 10);
+            }
+            return;
+          }
+          self.options.set('pendingEnterSelect', false);
 
           // self.trigger('results:select', {});
 
