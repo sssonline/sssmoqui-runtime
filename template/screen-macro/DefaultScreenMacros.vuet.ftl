@@ -153,10 +153,26 @@ ${sri.renderSectionInclude(.node)}
         <#assign title = ec.getResource().expand(.node["@title"], "")>
         <#if !title?has_content><#assign title = buttonText></#if>
         <#assign cdDivId><@nodeId .node/></#assign>
-        <button id="${cdDivId}-button" type="button" data-toggle="modal" data-target="#${cdDivId}" data-original-title="${buttonText}" data-placement="bottom" class="btn btn-${ec.getResource().expandNoL10n(.node["@type"]!"primary", "")} btn-sm ${ec.getResource().expandNoL10n(.node["@button-style"]!"", "")}"><#if iconClass?has_content><i class="${iconClass}"></i> </#if>${buttonText}</button>
+        <#-- tooltip: data-toggle belongs to the modal, so mark it data-tooltip for the app-wide delegated
+             init; it doubles as the accessible name for an icon-only button (card #990) -->
+        <#assign cdTooltip = ec.getResource().expand(.node["@tooltip"]!"", "")>
+        <button id="${cdDivId}-button" type="button" data-toggle="modal" data-target="#${cdDivId}"<#if cdTooltip?has_content> data-tooltip="true" data-original-title="${cdTooltip?html}" aria-label="${cdTooltip?html}"<#else> data-original-title="${buttonText}"</#if> data-placement="bottom" class="btn btn-${ec.getResource().expandNoL10n(.node["@type"]!"primary", "")} btn-sm ${ec.getResource().expandNoL10n(.node["@button-style"]!"", "")}"><#if iconClass?has_content><i class="${iconClass}"></i> </#if>${buttonText}</button>
+        <#-- As a form-single field the dialog would sit inside that form, and its contents would inherit the
+             form's styling (e.g. .form-horizontal's -15px .form-group margins pushing a nested list's cell
+             text out of its cells) and nest a form in a form. Render it after the screen instead, as
+             dynamic-dialog does; the button stays in place and opens it by id (card #990). -->
+        <#if ["default-field", "conditional-field"]?seq_contains(.node?parent?node_name) && ((.node?parent?parent?parent?node_name)!"") == "form-single">
+            <#assign cdAfterText>
+            <container-dialog id="${cdDivId}" width="${.node["@width"]!"760"}" title="${title}"<#if _openDialog! == cdDivId> :openDialog="true"</#if>>
+                <#recurse>
+            </container-dialog>
+            </#assign>
+            <#t>${sri.appendToAfterScreenWriter(cdAfterText)}
+        <#else>
         <container-dialog id="${cdDivId}" width="${.node["@width"]!"760"}" title="${title}"<#if _openDialog! == cdDivId> :openDialog="true"</#if>>
             <#recurse>
         </container-dialog>
+        </#if>
     </#if>
 </#macro>
 <#macro "dynamic-container">
