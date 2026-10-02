@@ -34,11 +34,15 @@
     <#assign boxHeader = .node["box-header"][0]!>
     <#assign boxTitle = ec.getResource().expand(boxHeader["@title"]!"", "")>
     <#if !singleFormTitle?has_content || singleFormTitle == boxTitle>
-        <#t><#if foundContainer>,<#else><#assign foundContainer = true></#if>{"title":"${boxTitle}",
-
-        <#t><#if .node["box-body"]?has_content><#recurse .node["box-body"][0]></#if>
-        <#t><#if .node["box-body-nopad"]?has_content><#recurse .node["box-body-nopad"][0]></#if>
-        <#t>}
+        <#-- render the body first: a box with no grid in it (e.g. only a form-single) renders nothing here, and a
+             sheet with a title but no columns made MoquiPoiServlet throw, breaking "All Forms on This Page" on any
+             page that has one (found shipping card #1061) -->
+        <#assign boxBodyOut><#if .node["box-body"]?has_content><#recurse .node["box-body"][0]></#if><#if .node["box-body-nopad"]?has_content><#recurse .node["box-body-nopad"][0]></#if></#assign>
+        <#if boxBodyOut?trim?has_content>
+            <#t><#if foundContainer>,<#else><#assign foundContainer = true></#if>{"title":"${boxTitle}",
+            <#t>${boxBodyOut}
+            <#t>}
+        </#if>
     </#if>
 </#macro>
 <#macro "container-panel">
