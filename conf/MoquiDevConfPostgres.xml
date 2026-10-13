@@ -24,7 +24,7 @@
     <default-property name="entity_ds_database" value="moqui"/>
     <default-property name="entity_ds_user" value="moqui"/>
     <default-property name="entity_ds_password" value="moqui"/>
-    <default-property name="entity_ds_crypt_pass" value="sssonline:instance:admin:99206"/>
+    <default-property name="entity_ds_crypt_pass" value="dev-only:postgres:cba0c1639f6fd40a"/>
 
     <tools empty-db-load="all"/>
 

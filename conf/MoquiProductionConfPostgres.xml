@@ -12,6 +12,7 @@
             entity_ds_user=...
             entity_ds_password=...
             entity_ds_crypt_pass=...   (never change once data is encrypted with it)
+        TLS is verify-full against entity_ds_ssl_root_cert (default /opt/aspen/shared/conf/azure-postgres-root-ca.pem).
         The database needs max_prepared_transactions >= 90 (Moqui's postgres pool-maxsize) for XA transactions.
     -->
     <default-property name="instance_purpose" value="production"/>
@@ -27,6 +28,9 @@
     <default-property name="entity_ds_user" value=""/>
     <default-property name="entity_ds_password" value="" is-secret="true"/>
     <default-property name="entity_ds_crypt_pass" value="" is-secret="true"/>
+    <!-- verify-full: TLS must chain to a CA in this PEM bundle AND the cert must match entity_ds_host (guide 3.2 builds it
+         from the Azure root CAs). A missing file fails the connection instead of silently skipping verification. -->
+    <default-property name="entity_ds_ssl_root_cert" value="/opt/aspen/shared/conf/azure-postgres-root-ca.pem"/>
 
     <!-- on start load seed data that hasnt been added yet -->
     <default-property name="entity_on_start_load_types" value="seed,seed-initial,install"/>
@@ -46,7 +50,7 @@
         <datasource group-name="transactional" database-conf-name="postgres" schema-name="${entity_ds_schema}">
             <inline-jdbc pool-maxsize="90"><xa-properties serverName="${entity_ds_host}" portNumber="${entity_ds_port?:'5432'}"
                     databaseName="${entity_ds_database}" user="${entity_ds_user}" password="${entity_ds_password}"
-                    stringType="unspecified" sslMode="require"/></inline-jdbc>
+                    stringType="unspecified" sslMode="verify-full" sslRootCert="${entity_ds_ssl_root_cert}"/></inline-jdbc>
         </datasource>
     </entity-facade>
 </moqui-conf>
