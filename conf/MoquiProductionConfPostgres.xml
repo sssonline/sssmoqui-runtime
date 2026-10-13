@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- No copyright or license for configuration file, details here are not considered a creative work. -->
+
+<!-- NOTE: for default settings, examples, and comments see the MoquiDefaultConf.xml file at
+    https://github.com/moqui/moqui-framework/blob/master/framework/src/main/resources/MoquiDefaultConf.xml -->
+<moqui-conf xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/moqui-conf-3.xsd">
+
+    <!--
+        PostgreSQL production. Secrets are intentionally blank here: set them as environment variables (or -D system
+        properties), which override default-property values, e.g. from a systemd EnvironmentFile:
+            entity_ds_host=<server>.postgres.database.azure.com
+            entity_ds_user=...
+            entity_ds_password=...
+            entity_ds_crypt_pass=...   (never change once data is encrypted with it)
+        The database needs max_prepared_transactions >= 90 (Moqui's postgres pool-maxsize) for XA transactions.
+    -->
+    <default-property name="instance_purpose" value="production"/>
+    <default-property name="entity_ds_db_conf" value="postgres"/>
+    <!-- the framework default is "", which Postgres JDBC getTables() treats as "no schema", so on restart Moqui finds no
+         existing tables, tries to recreate all of them, and the error flood deadlocks log4j during init -->
+    <default-property name="entity_ds_schema" value="public"/>
+    <!-- canonical IANA zone: Postgres (Debian tzdata 2024b+) rejects legacy aliases like the framework default US/Pacific -->
+    <default-property name="default_time_zone" value="America/Los_Angeles"/>
+    <default-property name="database_time_zone" value="America/Los_Angeles"/>
+    <default-property name="entity_ds_port" value="5432"/>
+    <default-property name="entity_ds_database" value="aspen"/>
+    <default-property name="entity_ds_user" value=""/>
+    <default-property name="entity_ds_password" value="" is-secret="true"/>
+    <default-property name="entity_ds_crypt_pass" value="" is-secret="true"/>
+
+    <!-- on start load seed data that hasnt been added yet -->
+    <default-property name="entity_on_start_load_types" value="seed,seed-initial,install"/>
+
+    <server-stats stats-skip-condition="pathInfo?.startsWith('/rpc') || pathInfo?.startsWith('/rest') || pathInfo?.startsWith('/status')"/>
+
+    <!-- no password expiry (0 = never require change; framework default is 104 weeks) -->
+    <user-facade>
+        <password change-weeks="0"/>
+    </user-facade>
+
+    <entity-facade crypt-pass="${entity_ds_crypt_pass}" query-stats="true">
+        <!-- add datasource elements here to configure databases -->
+        <!-- Postgres datasource with stringType=unspecified: Moqui binds String condition values (e.g. econdition value="0")
+             with setString() for any column type (FieldInfo.java:478); H2/DB2/MySQL coerce them, Postgres rejects
+             "numeric > character varying" unless the driver sends strings untyped. -->
+        <datasource group-name="transactional" database-conf-name="postgres" schema-name="${entity_ds_schema}">
+            <inline-jdbc pool-maxsize="90"><xa-properties serverName="${entity_ds_host}" portNumber="${entity_ds_port?:'5432'}"
+                    databaseName="${entity_ds_database}" user="${entity_ds_user}" password="${entity_ds_password}"
+                    stringType="unspecified" sslMode="require"/></inline-jdbc>
+        </datasource>
+    </entity-facade>
+</moqui-conf>

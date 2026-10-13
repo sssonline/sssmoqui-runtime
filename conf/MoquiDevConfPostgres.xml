@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- No copyright or license for configuration file, details here are not considered a creative work. -->
+
+<!-- NOTE: for default settings, examples, and comments see the MoquiDefaultConf.xml file at
+    https://github.com/moqui/moqui-framework/blob/master/framework/src/main/resources/MoquiDefaultConf.xml -->
+<moqui-conf xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/moqui-conf-3.xsd">
+
+    <default-property name="instance_purpose" value="dev"/>
+
+    <!--
+        Local dev Postgres (dev-only credentials). Start a server with ./cleanPostgres.sh, which (re)creates an
+        empty 'moqui' database; Moqui then creates tables and loads all data on first start (empty-db-load="all").
+        Run tests against it with: ./gradlew :runtime:component:aspen:test -Pconf=conf/MoquiDevConfPostgres.xml
+    -->
+    <default-property name="entity_ds_db_conf" value="postgres"/>
+    <!-- the framework default is "", which Postgres JDBC getTables() treats as "no schema", so on restart Moqui finds no
+         existing tables, tries to recreate all of them, and the error flood deadlocks log4j during init -->
+    <default-property name="entity_ds_schema" value="public"/>
+    <!-- canonical IANA zone: Postgres (Debian tzdata 2024b+) rejects legacy aliases like the framework default US/Pacific -->
+    <default-property name="default_time_zone" value="America/Los_Angeles"/>
+    <default-property name="database_time_zone" value="America/Los_Angeles"/>
+    <default-property name="entity_ds_host" value="localhost"/>
+    <default-property name="entity_ds_port" value="5432"/>
+    <default-property name="entity_ds_database" value="moqui"/>
+    <default-property name="entity_ds_user" value="moqui"/>
+    <default-property name="entity_ds_password" value="moqui"/>
+    <default-property name="entity_ds_crypt_pass" value="sssonline:instance:admin:99206"/>
+
+    <tools empty-db-load="all"/>
+
+    <cache-list warm-on-start="false">
+        <!-- Development Mode - expires artifact cache entries; don't use these for production, load testing, etc -->
+        <cache name="entity.definition" expire-time-idle="5"/>
+        <!-- longer timeout since this basically looks through all files to check for new or moved entity defs -->
+        <cache name="entity.location" expire-time-live="300"/>
+        <cache name="entity.data.feed.info" expire-time-idle="30"/>
+
+        <cache name="service.location" expire-time-idle="10"/>
+        <cache name="service.rest.api" expire-time-idle="10"/>
+        <cache name="kie.component.releaseId" expire-time-idle="10"/>
+
+        <cache name="screen.location" expire-time-idle="10"/>
+        <cache name="screen.url" expire-time-idle="10"/>
+        <cache name="screen.template.mode" expire-time-idle="10"/>
+        <cache name="screen.template.location" expire-time-idle="10"/>
+        <cache name="screen.find.path" expire-time-idle="30"/>
+
+        <cache name="resource.xml-actions.location" expire-time-idle="5"/>
+        <cache name="resource.groovy.location" expire-time-idle="5"/>
+
+        <cache name="resource.ftl.location" expire-time-idle="5"/>
+        <cache name="resource.gstring.location" expire-time-idle="5"/>
+        <cache name="resource.wiki.location" expire-time-idle="5"/>
+        <cache name="resource.markdown.location" expire-time-idle="5"/>
+        <cache name="resource.text.location" expire-time-idle="5"/>
+        <cache name="resource.reference.location" expire-time-idle="5"/>
+
+        <cache name="l10n.message" expire-time-idle="600"/>
+    </cache-list>
+
+    <server-stats stats-skip-condition="pathInfo?.startsWith('/rpc') || pathInfo?.startsWith('/rest') || pathInfo?.startsWith('/status')">
+        <!-- For development, track everything! It'll run slow through... -->
+        <artifact-stats type="AT_XML_SCREEN" persist-bin="true" persist-hit="true"/>
+        <artifact-stats type="AT_XML_SCREEN_CONTENT" persist-bin="true" persist-hit="true"/>
+        <artifact-stats type="AT_XML_SCREEN_TRANS" persist-bin="true" persist-hit="true"/>
+        <!-- NOTE: entity-implicit and entity-auto services never persist hits -->
+        <artifact-stats type="AT_SERVICE" persist-bin="true" persist-hit="true"/>
+        <artifact-stats type="AT_ENTITY" persist-bin="true"/>
+    </server-stats>
+
+    <webapp-list>
+        <webapp name="webroot">
+            <servlet name="H2Console" class="org.h2.server.web.WebServlet" load-on-startup="1">
+                <!-- <init-param name="webAllowOthers" value=""/><init-param name="trace" value=""/> -->
+                <url-pattern>/h2/*</url-pattern>
+            </servlet>
+        </webapp>
+    </webapp-list>
+    <artifact-execution-facade>
+        <!-- turn off tarpit in dev mode -->
+        <artifact-execution type="AT_XML_SCREEN" tarpit-enabled="false"/>
+        <artifact-execution type="AT_XML_SCREEN_TRANS" tarpit-enabled="false"/>
+        <artifact-execution type="AT_SERVICE" tarpit-enabled="false"/>
+    </artifact-execution-facade>
+
+    <screen-facade boundary-comments="true">
+        <!-- The default conf file has a macro location defined for html already, but this is an example of how to
+            refer to a file to override the default macros. -->
+        <screen-text-output type="html" mime-type="text/html" macro-template-location="template/screen-macro/ScreenHtmlMacros.ftl"/>
+    </screen-facade>
+
+    <entity-facade query-stats="true">
+        <!-- add datasource elements here to configure databases -->
+        <!-- Postgres datasource with stringType=unspecified: Moqui binds String condition values (e.g. econdition value="0")
+             with setString() for any column type (FieldInfo.java:478); H2/DB2/MySQL coerce them, Postgres rejects
+             "numeric > character varying" unless the driver sends strings untyped. -->
+        <datasource group-name="transactional" database-conf-name="postgres" schema-name="${entity_ds_schema}">
+            <inline-jdbc pool-maxsize="90"><xa-properties serverName="${entity_ds_host}" portNumber="${entity_ds_port?:'5432'}"
+                    databaseName="${entity_ds_database}" user="${entity_ds_user}" password="${entity_ds_password}"
+                    stringType="unspecified"/></inline-jdbc>
+        </datasource>
+    </entity-facade>
+
+    <repository-list>
+        <!-- requires 'org.apache.jackrabbit:jackrabbit-jcr-rmi' in the classpath:
+        <repository name="main" workspace="default" username="admin" password="admin">
+            <init-param name="org.apache.jackrabbit.repository.uri" value="http://localhost:8081/rmi"/></repository> -->
+    </repository-list>
+</moqui-conf>
