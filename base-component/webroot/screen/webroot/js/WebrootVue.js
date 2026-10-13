@@ -1399,6 +1399,26 @@ $(document.body).on('shown.bs.tooltip', function() {
 // a default-options instance created just to hide it
 $(document.body).on('click', '[data-toggle="tooltip"], [data-tooltip]', function() {
     var tt = $(this).data('bs.tooltip'); if (tt) tt.hide(); });
+// companion download (card #1165): a check PDF button or link carrying a non-blank alsoDownloadUrl (set when some checks
+// need a separate attachment sheet) also downloads that URL on the same click; a hidden iframe fetches it so the page
+// itself is not navigated. Buttons carry it as a form input, plain links (transitions without actions) in their href.
+// The browser may ask once to allow multiple downloads.
+moqui.alsoDownload = function(url) {
+    url = url ? url.trim() : ''; if (!url.length) return;
+    var frame = document.createElement('iframe');
+    frame.style.display = 'none'; frame.src = url;
+    document.body.appendChild(frame);
+    setTimeout(function() { if (frame.parentNode) frame.parentNode.removeChild(frame); }, 120000);
+};
+$(document.body).on('click', 'button[type="submit"], input[type="submit"]', function() {
+    var form = this.form; if (!form) return;
+    var input = form.querySelector('input[name="alsoDownloadUrl"]');
+    if (input) moqui.alsoDownload(input.value);
+});
+$(document.body).on('click', 'a[href*="alsoDownloadUrl="]', function() {
+    try { moqui.alsoDownload(new URL(this.href, window.location.href).searchParams.get('alsoDownloadUrl')); }
+    catch (e) { console.warn('alsoDownloadUrl not readable from link: ' + e); }
+});
 moqui.webrootVue = new Vue({
     el: '#apps-root',
     data: { basePath:"", linkBasePath:"", currentPathList:[], extraPathList:[], activeSubscreens:[], currentParameters:{}, bodyParameters:null,
