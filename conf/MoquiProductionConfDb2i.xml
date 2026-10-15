@@ -5,6 +5,18 @@
     https://github.com/moqui/moqui-framework/blob/master/framework/src/main/resources/MoquiDefaultConf.xml -->
 <moqui-conf xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/moqui-conf-3.xsd">
 
+    <!--
+        DB2 for i production (started by prodDb2i.sh). The DB user and password are intentionally blank here: set them
+        as environment variables (or -D system properties), which override default-property values:
+            entity_ds_user=...
+            entity_ds_password=...
+        prodDb2i.sh refuses to start without them. A missing entity_ds_user connects as the nonexistent profile
+        ENVNOTSET and fails with a clear error: on IBM i a blank user can fall back to the job's own profile.
+        prompt="false" makes a missing password fail with "Password is not set" instead of a sign-on dialog attempt.
+    -->
+    <default-property name="entity_ds_user" value=""/>
+    <default-property name="entity_ds_password" value="" is-secret="true"/>
+
     <server-stats stats-skip-condition="pathInfo?.startsWith('/rpc') || pathInfo?.startsWith('/rest') || pathInfo?.startsWith('/status')"/>
 
     <!-- no password expiry (0 = never require change; framework default is 104 weeks) -->
@@ -12,13 +24,12 @@
         <password change-weeks="0"/>
     </user-facade>
 
-    <!-- NOTE: using the environment variable is relatively secure in a container environment, but for more security set it here instead -->
     <entity-facade query-stats="true">
         <!-- add datasource elements here to configure databases -->
         <datasource group-name="transactional" database-conf-name="db2i" schema-name="ASPEN">
             <inline-jdbc>
-                <xa-properties user="aspen" password="sss99206" serverName="127.0.0.1"
-                               cursorHold="false" threadUsed="false" databaseName="SPOKANE" dateFormat="iso"/>
+                <xa-properties user="${entity_ds_user ?: 'ENVNOTSET'}" password="${entity_ds_password}" serverName="127.0.0.1"
+                               cursorHold="false" threadUsed="false" databaseName="SPOKANE" dateFormat="iso" prompt="false"/>
             </inline-jdbc>
         </datasource>
     </entity-facade>

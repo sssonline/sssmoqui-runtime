@@ -5,8 +5,26 @@
     https://github.com/moqui/moqui-framework/blob/master/framework/src/main/resources/MoquiDefaultConf.xml -->
 <moqui-conf xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/moqui-conf-3.xsd">
 
+    <!--
+        DB2 for i production (Saticoy). The DB user and password are intentionally blank here: set them as JVM system
+        properties or environment variables, which override default-property values (system properties win):
+            entity_ds_user=...
+            entity_ds_password=...
+        IBM i Integrated Web Application Server (Web Administration for i, port 2001): server > Properties > JRE tab >
+        JVM Options, one line each: -Dentity_ds_user=... and -Dentity_ds_password=... (no spaces in the values).
+        Startup then logs "Found property entity_ds_user with value [...], not setting from env var or default".
+        Full WebSphere: Process definition > Environment Entries (logs "Setting property ... from env var") or
+        Java Virtual Machine > Custom properties. Either way these only apply when the server's JVM starts: restart it.
+        A missing entity_ds_user connects as the nonexistent profile ENVNOTSET and fails with a clear error: on IBM i
+        a blank user can fall back to the job's own profile, and a real profile name could be locked out.
+        prompt="false" stops the IBM i driver from trying a sign-on dialog when the password is missing, so startup
+        fails with "Password is not set" instead of a HeadlessException, without a sign-on attempt.
+        Do not set entity_ds_crypt_pass without entity_ds_crypt_pass_old: it changes the key for encrypted fields.
+    -->
     <!-- on start load seed data that hasnt been added yet -->
     <default-property name="entity_on_start_load_types" value="seed,seed-initial,install"/>
+    <default-property name="entity_ds_user" value=""/>
+    <default-property name="entity_ds_password" value="" is-secret="true"/>
 
     <server-stats stats-skip-condition="pathInfo?.startsWith('/rpc') || pathInfo?.startsWith('/rest') || pathInfo?.startsWith('/status')"/>
 
@@ -15,13 +33,12 @@
         <password change-weeks="0"/>
     </user-facade>
 
-    <!-- NOTE: using the environment variable is relatively secure in a container environment, but for more security set it here instead -->
     <entity-facade query-stats="true">
         <!-- add datasource elements here to configure databases -->
         <datasource group-name="transactional" database-conf-name="db2i" schema-name="ASPEN">
             <inline-jdbc>
-                <xa-properties user="aspen" password="sss99206" serverName="127.0.0.1"
-                               cursorHold="false" threadUsed="false" databaseName="SPOKANE" dateFormat="iso"/>
+                <xa-properties user="${entity_ds_user ?: 'ENVNOTSET'}" password="${entity_ds_password}" serverName="127.0.0.1"
+                               cursorHold="false" threadUsed="false" databaseName="SPOKANE" dateFormat="iso" prompt="false"/>
             </inline-jdbc>
         </datasource>
     </entity-facade>
