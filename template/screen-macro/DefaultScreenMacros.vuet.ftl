@@ -679,10 +679,29 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
                     <div><strong>${ec.getL10n().localize("Active Saved Find:")} ${activeFormListFind.description?html}</strong>
                         <#if userDefaultFormListFindId == activeFormListFind.formListFindId><span class="text-info">(${ec.getL10n().localize("My Default")})</span></#if>
                     </div>
+                    <#-- sssonline (Simple Report #1153): in-app confirmations (never a native browser dialog) for Schedule, Stop Schedule
+                         and the saved find's Delete (x), schedule text "(Scheduled: XLSX,
+                         Monday-Friday)", Stop Schedule for the user's own schedule, and plain text when scheduling can't work -->
+                    <#assign screenFormStatic = Static["org.moqui.impl.screen.ScreenForm"]>
                     <#if screenScheduled?has_content>
-                        <p>(Scheduled for <#if screenScheduled.renderMode! == 'xsl-fo'>PDF<#else>${screenScheduled.renderMode!?upper_case}</#if><#rt>
-                            <#t> ${Static["org.moqui.impl.service.ScheduledJobRunner"].getCronDescription(screenScheduled.cronExpression, ec.user.getLocale(), true)!})</p>
+                        <#assign scheduleText>(Scheduled: ${screenFormStatic.getScheduleFormatLabel(screenScheduled.renderMode!"")}, ${screenFormStatic.getScheduleLabel(screenScheduled.cronExpression!"", ec)?html})</#assign>
+                        <#if (screenScheduled.userId!"") == (ec.user.userId!"")>
+                            <m-form class="form-inline" id="${formId}_UNSCHED" action="${formSaveFindUrl}">${scheduleText}
+                                <input type="hidden" name="formListFindId" value="${activeFormListFind.formListFindId}">
+                                <input type="hidden" name="formLocation" value="${formListInfo.getSavedFindFullLocation()}">
+                                <button type="submit" name="StopSchedule" class="aspen-confirm-submit hidden"></button>
+                                <button type="button" class="btn btn-danger btn-sm" onclick="moqui.aspenConfirmSubmit(this)"
+                                        data-confirm-title="Stop Schedule?" data-confirm-text="Stop emailing '${activeFormListFind.description?html}'?"
+                                        data-confirm-button="Stop Schedule" data-confirm-danger="true">Stop Schedule</button>
+                            </m-form>
+                        <#else>
+                            <div>${scheduleText}</div>
+                        </#if>
                     <#else>
+                        <#assign scheduleBlockedReason = screenFormStatic.getScheduleBlockedReason(ec)!"">
+                        <#if scheduleBlockedReason?has_content>
+                            <p>${scheduleBlockedReason}</p>
+                        <#else>
                         <m-form class="form-inline" id="${formId}_SCHED" action="${formSaveFindUrl}">
                             <input type="hidden" name="formListFindId" value="${activeFormListFind.formListFindId}">
                             <input type="hidden" name="screenPath" value="${sri.getScreenUrlInstance().path}">
@@ -695,9 +714,15 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
                                 <label class="sr-only" for="${formId}_SCHED_cronSelected">${ec.getL10n().localize("Schedule")}</label>
                                 <drop-down name="cronSelected" id="${formId}_SCHED_cronSelected" value="" :options="[{id:'0 0 6 ? * MON-FRI',text:'Monday-Friday'},{id:'0 0 6 ? * *',text:'Every Day'},{id:'0 0 6 ? * MON',text:'Monday Only'},{id:'0 0 6 1 * ?',text:'Monthly'}]"></drop-down>
                             </div>
-
-                            <button type="submit" name="ScheduleFind" class="btn btn-primary btn-sm" onclick="return confirm('${ec.getL10n().localize("Setup a schedule to send this saved find to you by email?")}');">${ec.getL10n().localize("Schedule")}</button>
+                            <button type="submit" name="ScheduleFind" class="aspen-confirm-submit hidden"></button>
+                            <button type="button" class="btn btn-primary btn-sm" onclick="moqui.aspenConfirmSchedule(this)"
+                                    data-find-name="${activeFormListFind.description?html}" data-email="${(screenFormStatic.getScheduleUserEmail(ec)!"")?html}"
+                                    data-first-0-0-6-mon-fri="${screenFormStatic.getNextScheduleRunText('0 0 6 ? * MON-FRI')}"
+                                    data-first-0-0-6-every-day="${screenFormStatic.getNextScheduleRunText('0 0 6 ? * *')}"
+                                    data-first-0-0-6-mon="${screenFormStatic.getNextScheduleRunText('0 0 6 ? * MON')}"
+                                    data-first-0-0-6-1="${screenFormStatic.getNextScheduleRunText('0 0 6 1 * ?')}">${ec.getL10n().localize("Schedule")}</button>
                         </m-form>
+                        </#if>
                     </#if>
                 </#if>
                 <#if currentFindUrlParms?has_content>
@@ -741,7 +766,7 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
                             <#else>
                                 <button type="submit" name="MakeDefault" class="btn btn-default btn-sm">${ec.getL10n().localize("Make Default")}</button>
                             </#if>
-                            <#if userFindInfo.isByUserId == "true"><button type="submit" name="DeleteFind" class="btn btn-danger btn-sm" onclick="return confirm('${ec.getL10n().localize("Delete")} ${formListFind.description?js_string}?');">&times;</button></#if>
+                            <#if userFindInfo.isByUserId == "true"><button type="submit" name="DeleteFind" class="aspen-confirm-submit hidden"></button><button type="button" class="btn btn-danger btn-sm" onclick="moqui.aspenConfirmSubmit(this)" data-confirm-title="Delete Saved Find?" data-confirm-text="Delete saved find '${formListFind.description?html}'?" data-confirm-button="Delete" data-confirm-danger="true">&times;</button></#if>
                         </m-form>
                         <m-link href="${doFindUrl.pathWithParams}" class="btn btn-success btn-sm">${ec.getL10n().localize("Do Find")}</m-link>
                     <#else>
@@ -755,7 +780,7 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
                                 <button type="submit" name="MakeDefault" class="btn btn-default btn-sm">${ec.getL10n().localize("Make Default")}</button>
                             </#if>
                             <input type="hidden" name="formListFindId" value="${formListFind.formListFindId}">
-                            <button type="submit" name="DeleteFind" class="btn btn-danger btn-sm" onclick="return confirm('${ec.getL10n().localize("Delete")} ${formListFind.description?js_string}?');">&times;</button>
+                            <button type="submit" name="DeleteFind" class="aspen-confirm-submit hidden"></button><button type="button" class="btn btn-danger btn-sm" onclick="moqui.aspenConfirmSubmit(this)" data-confirm-title="Delete Saved Find?" data-confirm-text="Delete saved find '${formListFind.description?html}'?" data-confirm-button="Delete" data-confirm-danger="true">&times;</button>
                         </m-form>
                         </#if>
                         <strong>${formListFind.description?html}</strong>
@@ -1496,7 +1521,9 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
         <#assign listEntryIndex = listEntry_index?c>
         <#-- NOTE: the form-list.@list-entry attribute is handled in the ScreenForm class through this call: -->
         <#t>${sri.startFormListRow(formListInfo, listEntry, listEntry_index, listEntry_has_next)}
-        <tr>
+        <#-- sssonline (Simple Report #1154): the show-total row AggregationUtil appends gets the contract's grand-total
+             treatment (AspenDefault.css tr.aspen-grid-total: th-bg gray, bold, th-border top rule) -->
+        <tr<#if (listEntry["_isTotalsRow"])!false> class="aspen-grid-total"</#if>>
         <#if !(isMulti || skipForm)><#assign ownerForm = formId + "_" + listEntry_index?c></#if>
         <#-- actual columns -->
         <#list mainColInfoList as columnFieldList>
@@ -1602,7 +1629,11 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
     <#assign defaultFieldNode = fieldNode["default-field"][0]!>
     <#assign containerStyle = ec.getResource().expandNoL10n(headerFieldNode["@container-style"]!, "")>
     <#assign headerAlign = fieldNode["@align"]!"left">
-    <#t><div class="form-title<#if containerStyle?has_content> ${containerStyle}</#if><#if headerAlign == "center"> text-center<#elseif headerAlign == "right"> text-right</#if>">
+    <#-- sssonline (Simple Report #1157): a field's tooltip also shows on its column header; only a static one, since a
+         row tooltip may use row values that don't exist when the header renders -->
+    <#assign headerTooltip = fieldSubNode["@tooltip"]!"">
+    <#if headerTooltip?contains(r"${")><#assign headerTooltip = ""></#if>
+    <#t><div class="form-title<#if containerStyle?has_content> ${containerStyle}</#if><#if headerAlign == "center"> text-center<#elseif headerAlign == "right"> text-right</#if>"<#if headerTooltip?has_content> data-toggle="tooltip" title="${headerTooltip?html}"</#if>>
         <#t><#if fieldSubNode["submit"]?has_content>&nbsp;<#else><@fieldTitle fieldSubNode/></#if>
         <#if fieldSubNode["@show-order-by"]! == "true" || fieldSubNode["@show-order-by"]! == "case-insensitive">
             <#assign caseInsensitive = fieldSubNode["@show-order-by"]! == "case-insensitive">

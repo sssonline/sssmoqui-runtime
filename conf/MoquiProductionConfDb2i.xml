@@ -13,6 +13,7 @@
         prodDb2i.sh refuses to start without them. A missing entity_ds_user connects as the nonexistent profile
         ENVNOTSET and fails with a clear error: on IBM i a blank user can fall back to the job's own profile.
         prompt="false" makes a missing password fail with "Password is not set" instead of a sign-on dialog attempt.
+        The Bitronix server ID is generated on first start (runtime/txlog/server-id, see MoquiProductionConf.xml).
     -->
     <default-property name="entity_ds_user" value=""/>
     <default-property name="entity_ds_password" value="" is-secret="true"/>

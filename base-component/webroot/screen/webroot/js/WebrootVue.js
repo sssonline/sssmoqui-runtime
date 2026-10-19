@@ -678,6 +678,9 @@ Vue.component('m-form', {
         // validation change — a control without a name has no rules and was always filtered out
         // right after the warning. contenteditable deliberately not ignored (the override names it).
         if (!this.noValidate) jqEl.validate({ errorClass: 'help-block', errorElement: 'span',
+            // sssonline (Simple Report #1155): a field's tooltip is its title attribute, which jQuery Validate would show as
+            // the error message ("documentName" instead of "This field is required.")
+            ignoreTitle: true,
             ignore: ':hidden, input:not([name]), button:not([name]), select:not([name]), textarea:not([name])',
             highlight: function(element, errorClass, validClass) { $(element).parents('.form-group').removeClass('has-success').addClass('has-error'); },
             unhighlight: function(element, errorClass, validClass) { $(element).parents('.form-group').removeClass('has-error').addClass('has-success'); }
@@ -756,6 +759,9 @@ Vue.component('form-link', {
         var jqEl = $(this.$el);
         // same ignore as m-form above (card #913): find-form submits hit the same unconditional warn
         if (!this.noValidate) jqEl.validate({ errorClass: 'help-block', errorElement: 'span',
+            // sssonline (Simple Report #1155): a field's tooltip is its title attribute, which jQuery Validate would show as
+            // the error message ("documentName" instead of "This field is required.")
+            ignoreTitle: true,
             ignore: ':hidden, input:not([name]), button:not([name]), select:not([name]), textarea:not([name])',
             highlight: function(element, errorClass, validClass) { $(element).parents('.form-group').removeClass('has-success').addClass('has-error'); },
             unhighlight: function(element, errorClass, validClass) { $(element).parents('.form-group').removeClass('has-error').addClass('has-success'); }
@@ -1776,3 +1782,45 @@ moqui.webrootVue = new Vue({
 
 });
 window.addEventListener('popstate', function() { moqui.webrootVue.setUrl(window.location.pathname + window.location.search, null, true); });
+
+/* ========== sssonline (Simple Report #1153): in-app confirmations for the saved-find Schedule and Stop Schedule buttons ==========
+   The Find Options template renders a visible type="button" that calls one of these and a hidden submit button
+   (button.aspen-confirm-submit, named ScheduleFind or StopSchedule); confirming clicks the hidden one so the m-form posts
+   it. Never a native browser dialog. The dialog stacks above the Find Options dialog. */
+moqui.aspenConfirmDialog = function(title, text, confirmText, danger, onConfirm) {
+    function el(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt !== undefined) e.textContent = txt; return e; }
+    var modal = el('div', 'modal fade'); modal.setAttribute('tabindex', '-1'); modal.style.zIndex = '1070';
+    var dialog = el('div', 'modal-dialog'); dialog.style.width = '560px';
+    var content = el('div', 'modal-content');
+    var header = el('div', 'modal-header');
+    var close = el('button', 'close', '×'); close.type = 'button'; close.setAttribute('data-dismiss', 'modal');
+    header.appendChild(close); header.appendChild(el('h4', 'modal-title', title));
+    var body = el('div', 'modal-body'); body.appendChild(el('p', null, text));
+    var footer = el('div', 'modal-footer');
+    var cancel = el('button', 'btn btn-primary', 'Cancel'); cancel.type = 'button'; cancel.setAttribute('data-dismiss', 'modal');
+    var ok = el('button', 'btn ' + (danger ? 'btn-danger' : 'btn-primary'), confirmText); ok.type = 'button';
+    ok.addEventListener('click', function() { $(modal).modal('hide'); if (onConfirm) onConfirm(); });
+    footer.appendChild(cancel); footer.appendChild(ok);
+    content.appendChild(header); content.appendChild(body); content.appendChild(footer);
+    dialog.appendChild(content); modal.appendChild(dialog); document.body.appendChild(modal);
+    $(modal).on('shown.bs.modal', function() { $('.modal-backdrop').last().css('z-index', 1065); });
+    $(modal).on('hidden.bs.modal', function() { $(modal).remove(); if ($('.modal.in').length) $('body').addClass('modal-open'); });
+    $(modal).modal('show');
+};
+moqui.aspenConfirmSubmit = function(btn) {
+    var $b = $(btn);
+    moqui.aspenConfirmDialog($b.attr('data-confirm-title'), $b.attr('data-confirm-text'), $b.attr('data-confirm-button'),
+        $b.attr('data-confirm-danger') === 'true', function() { $b.closest('form').find('button.aspen-confirm-submit').trigger('click'); });
+};
+moqui.aspenConfirmSchedule = function(btn) {
+    var $b = $(btn), $form = $b.closest('form');
+    var mode = $form.find('[name="renderMode"]').val() || 'xlsx';
+    var cron = $form.find('[name="cronSelected"]').val() || '0 0 6 ? * MON-FRI';
+    var schedules = { '0 0 6 ? * MON-FRI':['Monday-Friday', 'data-first-0-0-6-mon-fri'], '0 0 6 ? * *':['Every Day', 'data-first-0-0-6-every-day'],
+        '0 0 6 ? * MON':['Monday Only', 'data-first-0-0-6-mon'], '0 0 6 1 * ?':['Monthly', 'data-first-0-0-6-1'] };
+    var info = schedules[cron] || [cron, null];
+    var first = info[1] ? $b.attr(info[1]) : '';
+    var text = "Email '" + $b.attr('data-find-name') + "' to " + $b.attr('data-email') + ' ' + info[0] + ' at 6:00 AM as ' +
+        (mode === 'xsl-fo' ? 'PDF' : mode.toUpperCase()) + '?' + (first ? ' The first email arrives ' + first + '.' : '');
+    moqui.aspenConfirmDialog('Schedule Email?', text, 'Schedule', false, function() { $form.find('button.aspen-confirm-submit').trigger('click'); });
+};

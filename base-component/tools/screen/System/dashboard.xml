@@ -88,6 +88,9 @@ along with this software (see the LICENSE.md file). If not, see
                 <link url="../DataDocument/Export" text="Export"/>
                 <link url="../DataDocument/Index" text="Feed Index"/>
                 <link url="../DataDocument/Edit" text="Edit and Report Builder"/>
+                <!-- sssonline: Simple Report (basalt) is mounted in System for the ADMIN group only -->
+                <link url="../SimpleReport" text="Simple Reports" condition="ec.user.isInGroup('ADMIN')"/>
+                <link url="../CustomReports" text="Custom Reports" condition="ec.user.isInGroup('ADMIN')"/>
             </box-body></container-box>
             <container-box id="DataAdmin"><box-header title="Data Admin"/><box-body>
                 <link url="../Localization/Messages" text="L10n: Messages"/>

@@ -14,6 +14,7 @@
             entity_ds_crypt_pass=...   (never change once data is encrypted with it)
         TLS is verify-full against entity_ds_ssl_root_cert (default /opt/aspen/shared/conf/azure-postgres-root-ca.pem).
         The database needs max_prepared_transactions >= 90 (Moqui's postgres pool-maxsize) for XA transactions.
+        The Bitronix server ID is generated on first start and saved in runtime/txlog/server-id (Azure guide section 3.3).
     -->
     <default-property name="instance_purpose" value="production"/>
     <default-property name="entity_ds_db_conf" value="postgres"/>
