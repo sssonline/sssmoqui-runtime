@@ -2174,8 +2174,14 @@ ${sri.getFieldValueString(.node)?html}</textarea>
             <#assign defUrlParameterMap = defUrlInfo.getParameterMap()>
             <#assign depNodeList = .node["depends-on"]>
             <m-script>
+                <#-- a value the user types while the lookup is in flight wins: the answer only fills a field left untouched
+                     since this lookup started (each depends-on change starts a new one); a quantity typed right after picking
+                     a tag was being overwritten with the tag's full QOH -->
+                var typedSince_${tlId} = false;
+                $('#${tlId}').on('input', function() { typedSince_${tlId} = true; });
                 function populate_${tlId}() {
                     // if ($('#${tlId}').val()) return;
+                    typedSince_${tlId} = false;
                     var hasAllParms = true;
                     <#list depNodeList as depNode>if (!$('#<@fieldIdByName depNode["@field"]/>').val()) { hasAllParms = false; } </#list>
                     if (!hasAllParms) { <#-- alert("not has all parms"); --> return; }
@@ -2186,7 +2192,7 @@ ${sri.getFieldValueString(.node)?html}</textarea>
                                 <#-- only overwrite when the lookup actually found a value: an empty response
                                      (no match) must not clear what the user already typed, e.g. a new feature's
                                      abbrev when the Feature Type changes (card #1017) -->
-                                if (defaultText && defaultText.length) { $('#${tlId}').val(defaultText); } } });
+                                if (defaultText && defaultText.length && !typedSince_${tlId}) { $('#${tlId}').val(defaultText); } } });
                 }
                 <#list depNodeList as depNode>
                 $("#<@fieldIdByName depNode["@field"]/>").on('change', function() { populate_${tlId}(); });
@@ -2556,6 +2562,8 @@ value='${mlInitHidden?html}'/>
     </#function>
 <#-- ================ Tabs (custom element) ================ -->
 <#macro tabs>
+    <#-- SSS #1184: tabs@condition (documented in xml-screen-3.xsd) - false renders no tab group at all; none = as before -->
+    <#if .node["@condition"]?has_content && !ec.getResource().condition(.node["@condition"], "")><#return></#if>
     <#-- attributes -->
     <#assign tabsName = ec.getResource().expandNoL10n(.node["@name"]!"", "")>
     <#assign parmName = ec.getResource().expandNoL10n(.node["@parm-name"]!"", "")>
@@ -2574,8 +2582,14 @@ value='${mlInitHidden?html}'/>
         <#assign tabsIdBase = tabsIdBase + "_" + sectionEntryIndex>
     </#if>
 
-    <#-- collect tab nodes -->
-    <#assign tabNodeList = .node["tab"]![]>
+    <#-- collect tab nodes; SSS #1184: a tab whose tab@condition is false is left out (header and content), so the
+         active-tab fallback below lands on the first visible tab. No condition = every tab, exactly as before. -->
+    <#assign tabNodeList = []>
+    <#list .node["tab"]![] as tnodeAll>
+        <#if !tnodeAll["@condition"]?has_content || ec.getResource().condition(tnodeAll["@condition"], "")>
+            <#assign tabNodeList = tabNodeList + [tnodeAll]>
+        </#if>
+    </#list>
 
     <#-- determine active tab name -->
     <#assign activeTab = "">

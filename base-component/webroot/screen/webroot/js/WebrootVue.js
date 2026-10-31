@@ -1053,7 +1053,7 @@ Vue.component('drop-down', {
         serverSearch:{type:Boolean,'default':false}, serverDelay:{type:Number,'default':10}, serverMinLength:{type:Number,'default':1},
         optionsParameters:Object, labelField:String, valueField:String, dependsOn:Object, dependsOptional:Boolean,
         optionsLoadInit:Boolean, form:String, tooltip:String },
-    data: function() { return { curData:null, s2Opts:null, lastVal:null } },
+    data: function() { return { curData:null, s2Opts:null, lastVal:null, clearedByUser:false } },
     template: '<select :form="form" :data-title="tooltip"><slot></slot></select>',
     methods: {
         processOptionList: function(list, page, term) {
@@ -1106,7 +1106,9 @@ Vue.component('drop-down', {
             $.ajax({ type:"POST", url:this.optionsUrl, data:reqData, dataType:"json", headers:{Accept:'application/json'},
                 error:moqui.handleAjaxError, success: function(data) {
                     var list = moqui.isArray(data) ? data : data.options;
-                    if (list) { vm.curData = vm.processOptionList(list, null, (params ? params.term : null)); }
+                    // SSS: a depends-on reload passes the initial value as term for the server; it is not a typed search,
+                    //    so it doesn't drop the allow-empty choice
+                    if (list) { vm.curData = vm.processOptionList(list, null, (params && !params.dependsReload ? params.term : null)); }
                 }});
         }
     },
@@ -1211,12 +1213,21 @@ Vue.component('drop-down', {
 
         // needed? was a hack for something, but interferes with closeOnSelect:false for multiple: .on('select2:select', function () { jqEl.select2('open').select2('close'); });
         // needed? caused some issues: .on('change', function () { vm.$emit('input', vm.curVal); })
+        // SSS: a user who deliberately picks the empty option (or clicks select2's clear x) also forgets lastVal, so an
+        //    options reload from a parent field doesn't bring the old pick back; programmatic .val().trigger('change')
+        //    fires no select2 user event, and select2's destroy only removes its own '.select2' namespace, so this binds once
+        //    (and the starting value isn't put back either: clearedByUser until the user picks a real value again)
+        jqEl.on('select2:select.mqLastVal select2:clear.mqLastVal', function(e) {
+            var pickedId = e.params && e.params.data ? e.params.data.id : null;
+            vm.clearedByUser = (e.type === 'select2:clear' || !pickedId || pickedId === ' ');
+            if (vm.clearedByUser) vm.lastVal = null;
+        });
         var initValue = this.value;
         if (initValue && initValue.length) { this.curVal = initValue; }
         if (this.optionsUrl && this.optionsUrl.length > 0) {
             var dependsOnMap = this.dependsOn;
             for (var doParm in dependsOnMap) { if (dependsOnMap.hasOwnProperty(doParm)) {
-                $('#' + dependsOnMap[doParm]).on('change', function() { vm.populateFromUrl({term:initValue}); }); }}
+                $('#' + dependsOnMap[doParm]).on('change', function() { vm.populateFromUrl({term:initValue, dependsReload:true}); }); }}
             // do initial populate if not a serverSearch or for serverSearch if we have an initial value do the search so we don't display the ID
             if (this.optionsLoadInit) {
                 if (!this.serverSearch) { this.populateFromUrl(); }
@@ -1240,7 +1251,7 @@ Vue.component('drop-down', {
             if (this.tooltip && this.tooltip.length) jqEl.next().tooltip({ title: function() { return $(this).prev().attr("data-title"); }, placement: "auto", trigger: "hover", container: "body" }).on('click', function(){ $(this).tooltip('hide'); });
             if (wasFocused) jqEl.focus();
             setTimeout(function() {
-                var setVal = vm.lastVal; if (!setVal || setVal.length < 2) { setVal = vm.value; }
+                var setVal = vm.lastVal; if ((!setVal || setVal.length < 2) && !vm.clearedByUser) { setVal = vm.value; }
                 if (setVal) {
                     var isInList = false;
                     var setValIsArray = moqui.isArray(setVal);
@@ -1337,7 +1348,7 @@ Vue.component('subscreens-tabs', {
     mounted: function() { this.pathIndex = this.$root.activeSubscreens.length; }
 });
 Vue.component('subscreens-active', {
-    data: function() { return { activeComponent:moqui.EmptyComponent, pathIndex:-1, pathName:null } },
+    data: function() { return { activeComponent:moqui.EmptyComponent, pathIndex:-1, pathName:null, loadSeq:0 } },
     template: '<component :is="activeComponent"></component>',
     // method instead of a watch on pathName so that it runs even when newPath is the same for non-static reloading
     methods: { loadActive: function() {
@@ -1371,10 +1382,14 @@ Vue.component('subscreens-active', {
         if (navMenuItem && navMenuItem.renderModes) urlInfo.renderModes = navMenuItem.renderModes;
         console.info('subscreens-active loadActive pathIndex ' + pathIndex + ' pathName ' + vm.pathName + ' urlInfo ' + JSON.stringify(urlInfo));
         root.loading++;
+        // only the latest load for this subscreen may set the component; a superseded response (e.g. the second
+        // reloadSubscreens from the menu reply on a same-URL reload) would otherwise mount a second child subscreens-active
+        var loadSeq = ++vm.loadSeq;
         root.currentLoadRequest = moqui.loadComponent(urlInfo, function(comp) {
+            root.loading--;
+            if (loadSeq !== vm.loadSeq) return;
             root.currentLoadRequest = null;
             vm.activeComponent = comp;
-            root.loading--;
         });
         return true;
     }},
