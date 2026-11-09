@@ -18,6 +18,8 @@
 /sessions/
 /tmp/
 /txlog/
+# #1334 test runs' own Bitronix journal
+/txlog-test/
 
 # common runtime added files
 /classes/*.pem
