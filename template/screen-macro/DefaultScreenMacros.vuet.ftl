@@ -2433,7 +2433,13 @@ ${sri.getFieldValueString(.node)?html}</textarea>
             <#if _kv?size gte 2>
                 <#assign _k = _kv[0]?trim>
                 <#assign _vName = _kv[1]?trim>
-                <#assign _vVal = (ec.context.get(_vName))!"" >
+                <#-- a dotted value (orderPartInfo.orderPart.orderPartSeqId) is a path, not one context key: evaluate
+                     it null-safely; a plain name is a straight context lookup (card #1296) -->
+                <#if _vName?contains(".")>
+                    <#assign _vVal = (ec.getResource().expression(_vName?replace(".", "?."), ""))!"" >
+                <#else>
+                    <#assign _vVal = (ec.context.get(_vName))!"" >
+                </#if>
                 <#-- ?c for numbers: ?string locale-groups 1000 as "1,000" (card #947) -->
                 <#assign _vStr = _vVal?is_number?then(_vVal?c, _vVal?string)>
                 <#assign _json = _json + "\"" + (_k?json_string) + "\":\"" + (_vStr?json_string) + "\"" >
