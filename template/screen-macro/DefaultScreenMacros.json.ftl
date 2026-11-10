@@ -27,6 +27,9 @@
 <#-- ================ Section ================ -->
 <#macro section>${sri.renderSection(.node["@name"])}</#macro>
 <#macro "section-iterate">${sri.renderSection(.node["@name"])}</#macro>
+<#-- sssonline (Simple Report #1301/#1340): a section-include renders its section, as in the csv macros; without this the
+     XLSX (/poi) and JSON exports of a screen that shows its grid through a section-include (System > Custom Reports) are empty -->
+<#macro "section-include">${sri.renderSectionInclude(.node)}</#macro>
 
 <#-- ================ Containers ================ -->
 <#macro container><#recurse></#macro>

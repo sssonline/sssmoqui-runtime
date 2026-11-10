@@ -1633,8 +1633,9 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
          row tooltip may use row values that don't exist when the header renders -->
     <#assign headerTooltip = fieldSubNode["@tooltip"]!"">
     <#if headerTooltip?contains(r"${")><#assign headerTooltip = ""></#if>
-    <#t><div class="form-title<#if containerStyle?has_content> ${containerStyle}</#if><#if headerAlign == "center"> text-center<#elseif headerAlign == "right"> text-right</#if>"<#if headerTooltip?has_content> data-toggle="tooltip" title="${headerTooltip?html}"</#if>>
-        <#t><#if fieldSubNode["submit"]?has_content>&nbsp;<#else><@fieldTitle fieldSubNode/></#if>
+    <#t><div class="form-title<#if containerStyle?has_content> ${containerStyle}</#if><#if headerAlign == "center"> text-center<#elseif headerAlign == "right"> text-right</#if>">
+        <#-- #1302: the tooltip sits on the header text itself, so it shows right above the words rather than centered over the whole column -->
+        <#t><#if fieldSubNode["submit"]?has_content>&nbsp;<#elseif headerTooltip?has_content><span data-toggle="tooltip" title="${headerTooltip?html}"><@fieldTitle fieldSubNode/></span><#else><@fieldTitle fieldSubNode/></#if>
         <#if fieldSubNode["@show-order-by"]! == "true" || fieldSubNode["@show-order-by"]! == "case-insensitive">
             <#assign caseInsensitive = fieldSubNode["@show-order-by"]! == "case-insensitive">
             <#assign curFieldName = fieldNode["@name"]>

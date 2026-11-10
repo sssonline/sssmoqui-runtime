@@ -375,12 +375,16 @@ var moqui = {
         }
     },
     NotifySettings: function(type) {
-        this.delay = 4000; this.offset = { x:20, y:60 }; this.placement = {from:'top',align:'right'};
+        // sssonline (#1340, app-wide growls): same top-center spot under the header as WebrootVue's growls
+        this.delay = 4000; this.offset = moqui.notifyOffset ? moqui.notifyOffset() : { x:0, y:60 };
+        this.placement = {from:'top',align:'center'}; this.z_index = 1100; this.allow_dismiss = true; this.mouse_over = 'pause';
         this.animate = { enter:'animated fadeInDown', exit:'' }; // no animate on exit: animated fadeOutUp
         if (type) { this.type = type; } else { this.type = 'info'; }
-        this.template =
-            '<div data-notify="container" class="notify-container col-xs-11 col-sm-3 alert alert-{0}" role="alert">' +
-                '<button type="button" aria-hidden="true" class="close" data-notify="dismiss">&times;</button>' +
+        // same timing as WebrootVue's growls: success 1 second, errors stay until closed, the rest 5 seconds
+        this.delay = this.type === 'success' ? 1000 : (this.type === 'danger' ? 0 : 5000); this.timer = 250;
+        this.template = moqui.notifyTemplate ? moqui.notifyTemplate :
+            '<div data-notify="container" class="notify-container col-xs-11 col-sm-4 alert alert-{0}" role="alert">' +
+                '<button type="button" aria-label="Close" class="close" data-notify="dismiss">&times;</button>' +
                 '<span data-notify="icon"></span> <span data-notify="message">{2}</span>' +
                 '<a href="{3}" target="{4}" data-notify="url"></a>' +
             '</div>';

@@ -56,12 +56,35 @@ Vue.filter('decodeHtml', moqui.htmlDecode);
 Vue.filter('format', moqui.format);
 
 /* ========== notify and error handling ========== */
-moqui.notifyOpts = { delay:1500, timer:500, offset:{x:20,y:60}, placement:{from:'top',align:'right'}, z_index:1100, type:'success',
-    animate:{ enter:'animated fadeInDown', exit:'' } }; // no animate on exit: animated fadeOutUp
-moqui.notifyOptsInfo = { delay:5000, timer:500, offset:{x:20,y:60}, placement:{from:'top',align:'right'}, z_index:1100, type:'info',
-    animate:{ enter:'animated fadeInDown', exit:'' } }; // no animate on exit: animated fadeOutUp
-moqui.notifyOptsError = { delay:15000, timer:500, offset:{x:20,y:60}, placement:{from:'top',align:'right'}, z_index:1100, type:'danger',
-    animate:{ enter:'animated fadeInDown', exit:'' } }; // no animate on exit: animated fadeOutUp
+/* sssonline (#1340, app-wide growls): every growl shows top-center just under the header, where it covers no box-header
+   or toolbar button, with a close x; success closes after 1 second, info after 5, errors stay until closed (DESIGN.md
+   "Errors persist until dismissed"). Hovering a growl pauses its countdown. The offset is read at each growl, so it
+   follows the header when its breadcrumb row wraps and it grows. MoquiLib.NotifySettings (server-pushed notifications)
+   uses the same placement and template. */
+moqui.notifyOffset = function() {
+    var nav = document.querySelector('#top .navbar-fixed-top') || document.querySelector('.navbar-fixed-top');
+    var bottom = nav ? nav.getBoundingClientRect().bottom : 51;
+    return { x:0, y:Math.max(0, Math.round(bottom)) + 8 };
+};
+moqui.notifyTemplate = '<div data-notify="container" class="notify-container col-xs-11 col-sm-4 alert alert-{0}" role="alert">' +
+    '<button type="button" aria-label="Close" class="close" data-notify="dismiss">&times;</button>' +
+    '<span data-notify="icon"></span> <span data-notify="title">{1}</span> <span data-notify="message">{2}</span>' +
+    '<a href="{3}" target="{4}" data-notify="url"></a></div>';
+moqui.makeNotifyOpts = function(type, delay) {
+    var opts = { delay:delay, timer:250, placement:{from:'top',align:'center'}, z_index:1100, type:type, allow_dismiss:true,
+        mouse_over:'pause', template:moqui.notifyTemplate, animate:{ enter:'animated fadeInDown', exit:'' } }; // no animate on exit
+    Object.defineProperty(opts, 'offset', { enumerable:true, get:function() { return moqui.notifyOffset(); } });
+    return opts;
+};
+moqui.notifyOpts = moqui.makeNotifyOpts('success', 1000);
+moqui.notifyOptsInfo = moqui.makeNotifyOpts('info', 5000);
+moqui.notifyOptsError = moqui.makeNotifyOpts('danger', 0);
+/* the options for a message the server sent with its own type: success and danger follow their own timing */
+moqui.notifyOptsForType = function(msgType) {
+    if (msgType === 'success') return moqui.notifyOpts;
+    if (msgType === 'danger') return moqui.notifyOptsError;
+    return $.extend({}, moqui.notifyOptsInfo, { type:msgType });
+};
 moqui.notifyMessages = function(messages, errors, validationErrors) {
     var notified = false;
     if (messages) {
@@ -70,7 +93,7 @@ moqui.notifyMessages = function(messages, errors, validationErrors) {
                 var messageItem = messages[mi];
                 if (moqui.isPlainObject(messageItem)) {
                     var msgType = messageItem.type; if (!msgType || !msgType.length) msgType = 'info';
-                    $.notify(new moqui.NotifyOptions(messageItem.message, null, msgType, null), $.extend({}, moqui.notifyOptsInfo, { type:msgType }));
+                    $.notify(new moqui.NotifyOptions(messageItem.message, null, msgType, null), moqui.notifyOptsForType(msgType));
                     moqui.webrootVue.addNotify(messageItem.message, msgType);
                 } else {
                     $.notify(new moqui.NotifyOptions(messageItem, null, 'info', null), moqui.notifyOptsInfo);
@@ -1172,15 +1195,20 @@ Vue.component('drop-down', {
         this.s2Opts = opts;
         jqEl.select2(opts).on('change', function () {
             vm.$emit('input', this.value);
-            if (vm.submitOnSelect) {
-                // TODO: find a better approach, perhaps pass down a reference to m-form or something so can refer to it more explicitly and handle Vue components in between
-                // this assumes the parent is m-form, if not it will blow up... alternatives are tricky
-                // vm.$nextTick(function() { vm.$parent.submitForm(); });
-                // TODO: implement this in some way so it doesn't immediately try to submit the form; because of
-                //    the mess that is select2 and how it is used here, the change even gets called on initial load if there is a value!
-                // TODO: if/when this is ever figured out, also add to on change listener in the watch => curData block below, and for the html render mode
-            }
         });
+        // sssonline (#1340): submit-on-select submits the drop-down's form when the user picks an option. It listens to
+        // select2:select, which only a user's pick fires (the change event also fires while the widget loads its value,
+        // which is why upstream left this a TODO); the submit waits a tick so the form reads the new value. The form is
+        // the nearest ancestor component with submitForm (m-form), however many components sit in between.
+        if (this.submitOnSelect) {
+            jqEl.on('select2:select', function () {
+                setTimeout(function () {
+                    var p = vm.$parent;
+                    while (p && typeof p.submitForm !== 'function') p = p.$parent;
+                    if (p) p.submitForm();
+                }, 0);
+            });
+        }
         if (this.combo) {
             // Commit typed-but-not-yet-selected text when the dropdown closes (tab, click outside, etc).
             // Select2's selectOnClose only fires when a result is highlighted, which isn't reliable in
