@@ -1,20 +1,40 @@
 <#-- Copyright 2014-2017 Spokane Software Systems, Inc. All Rights Reserved. -->
 
 <#macro jsonValue textValue>
-    <#-- This escaping looks for the JSON reserved characters that are potentially present in strings and escapes them -->
-    <#--   Newline is replaced with \n          -->
-    <#--   Carriage return is replaced with \r  -->
-    <#--   Tab is replaced with \t              -->
-    <#--   Double quote is replaced with \"     -->
-    <#--   Backslash is replaced with \\        -->
-    <#t><#if textValue??><#if fieldPrinted!false>,</#if><#assign fieldPrinted = true><#assign cellsEmitted = (cellsEmitted!0) + 1>"${textValue?replace("\n", "\\n")?replace("\r", "\\r")?replace("\t", "\\t")?replace("\"", "\\\"")?replace("\\", "\\\\")}"</#if>
+    <#-- sssonline: ?json_string escapes backslash before quote (and control characters); the old replace chain escaped
+         the quote first and then doubled its backslash, so any value with a " in it (block S. Neumann "a") broke the
+         XLSX and JSON exports of its page -->
+    <#t><#if textValue??><#if fieldPrinted!false>,</#if><#assign fieldPrinted = true><#assign cellsEmitted = (cellsEmitted!0) + 1>"${textValue?json_string}"</#if>
 </#macro>
+
+<#-- ================ Export objects ================
+     sssonline: the XLSX (/poi) and JSON exports wrap this output in [ ] and parse it with JsonSlurperClassic, which
+     accepts a trailing comma, so every object ends with "},". Each grid (form-list) is one object, {"title":...,
+     "columns":...,"colTypes":...,"data":...}, and one sheet. A box opens {"title":"<box title>", and closes it; a second
+     grid in the same box closes the first object and opens another with the same title (makeWorkbook numbers repeated
+     sheet names); a grid outside any box gets its own object titled with its screen's name. A box with no grid comes
+     out as {"title":"...",}, which the exports skip.
+     A section, section-iterate, section-include or subscreen renders in its own FreeMarker environment
+     (ScreenWidgetRenderFtl) straight to the screen writer, so nothing here may capture output into a variable (that
+     was the AP Open Invoices 500 on Saticoy, 11/11) and the box state lives in the context stack's shared map, which
+     every one of those environments sees. It is keyed to this render (sri) so a stale state from an earlier render in
+     the same execution context (a scheduled send) is never read. -->
+<#function jsonExportState>
+    <#local shared = ec.getContext().getSharedMap()>
+    <#local renderId = sri.hashCode()?c>
+    <#if (shared.get("_jsonExportRender")!"") != renderId>
+        <#local ignored = shared.put("_jsonExportRender", renderId)!>
+        <#local ignored = shared.put("_jsonBoxDepth", 0)!>
+        <#local ignored = shared.put("_jsonBoxTitle", "")!>
+        <#local ignored = shared.put("_jsonBoxGrids", 0)!>
+    </#if>
+    <#return shared>
+</#function>
 
 <#macro @element><#-- do nothing for unknown elements --></#macro>
 <#macro screen><#recurse></#macro>
 <#macro widgets>
     <#if !singleFormTitle?has_content><#assign singleFormTitle = ""></#if>
-    <#assign foundContainer = false>
     <#recurse>
 </#macro>
 <#macro "fail-widgets"><#recurse></#macro>
@@ -37,15 +57,21 @@
     <#assign boxHeader = .node["box-header"][0]!>
     <#assign boxTitle = ec.getResource().expand(boxHeader["@title"]!"", "")>
     <#if !singleFormTitle?has_content || singleFormTitle == boxTitle>
-        <#-- render the body first: a box with no grid in it (e.g. only a form-single) renders nothing here, and a
-             sheet with a title but no columns made MoquiPoiServlet throw, breaking "All Forms on This Page" on any
-             page that has one (found shipping card #1061) -->
-        <#assign boxBodyOut><#if .node["box-body"]?has_content><#recurse .node["box-body"][0]></#if><#if .node["box-body-nopad"]?has_content><#recurse .node["box-body-nopad"][0]></#if></#assign>
-        <#if boxBodyOut?trim?has_content>
-            <#t><#if foundContainer>,<#else><#assign foundContainer = true></#if>{"title":"${boxTitle}",
-            <#t>${boxBodyOut}
-            <#t>}
-        </#if>
+        <#-- written straight to the output, never captured (see Export objects above). A box inside a box closes the
+             outer box's object, and reopens it after, so its grids are never inside another object -->
+        <#local state = jsonExportState()>
+        <#local outerDepth = state.get("_jsonBoxDepth")!0>
+        <#local outerTitle = state.get("_jsonBoxTitle")!"">
+        <#t><#if (outerDepth > 0)>},</#if>{"title":"${boxTitle?json_string}",
+        <#local ignored = state.put("_jsonBoxDepth", outerDepth + 1)!>
+        <#local ignored = state.put("_jsonBoxTitle", boxTitle)!>
+        <#local ignored = state.put("_jsonBoxGrids", 0)!>
+        <#t><#if .node["box-body"]?has_content><#recurse .node["box-body"][0]></#if>
+        <#t><#if .node["box-body-nopad"]?has_content><#recurse .node["box-body-nopad"][0]></#if>
+        <#t>},<#if (outerDepth > 0)>{"title":"${outerTitle?json_string}",</#if>
+        <#local ignored = state.put("_jsonBoxDepth", outerDepth)!>
+        <#local ignored = state.put("_jsonBoxTitle", outerTitle)!>
+        <#local ignored = state.put("_jsonBoxGrids", 0)!>
     </#if>
 </#macro>
 <#macro "container-panel">
@@ -55,7 +81,9 @@
     <#t><#if .node["panel-right"]?has_content><#recurse .node["panel-right"][0]></#if>
     <#t><#if .node["panel-footer"]?has_content><#recurse .node["panel-footer"][0]></#if>
 </#macro>
-<#macro "container-dialog"><#recurse></#macro>
+<#-- sssonline: a dialog is a popup, not part of the page, so it exports nothing; a grid in a per-row dialog (charge
+     history on Grower Charges) made one sheet per row, and a dialog grid next to the box's own grid broke the export -->
+<#macro "container-dialog"></#macro>
 
 <#-- ==================== Includes ==================== -->
 <#macro "include-screen">${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}</#macro>
@@ -126,6 +154,20 @@ on the same screen to increase reusability of those screens -->
 <#macro "form-single"></#macro>
 
 <#macro "form-list">
+    <#-- one object per grid (see Export objects above): inside a box, the first grid uses the object the box opened and
+         each later one starts its own; outside any box the grid opens and closes its own object, titled with the
+         screen's name, and "This Form Only" (singleFormTitle) keeps it only when that is the name asked for -->
+    <#local state = jsonExportState()>
+    <#local inBox = ((state.get("_jsonBoxDepth")!0) > 0)>
+    <#if inBox>
+        <#local boxGrids = state.get("_jsonBoxGrids")!0>
+        <#if (boxGrids > 0)><#t>},{"title":"${(state.get("_jsonBoxTitle")!"")?json_string}",</#if>
+        <#local ignored = state.put("_jsonBoxGrids", boxGrids + 1)!>
+    <#else>
+        <#local gridTitle = ec.getResource().expand(sri.getActiveScreenDef().getDefaultMenuName()!"", "")>
+        <#if singleFormTitle?has_content && singleFormTitle != gridTitle><#return></#if>
+        <#t>{"title":"${gridTitle?json_string}",
+    </#if>
     <#-- Use the formNode assembled based on other settings instead of the straight one from the file: -->
     <#assign formInstance = sri.getFormInstance(.node["@name"])>
     <#assign formListInfo = formInstance.makeFormListRenderInfo()>
@@ -175,6 +217,7 @@ on the same screen to increase reusability of those screens -->
     <#if listObject?size &gt; 0><#t>]</#if>
     </@compress>
     ${sri.safeCloseList(listObject)}<#t><#-- if listObject is an EntityListIterator, close it -->
+    <#if !inBox><#t>},</#if>
 </#macro>
 <#-- does this column ever emit a data cell? Mirrors formListWidget's skip rules exactly, so
      headers, colTypes, and data cells stay positionally aligned by construction: hidden fields
