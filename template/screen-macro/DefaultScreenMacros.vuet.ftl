@@ -1268,6 +1268,21 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
                 <#assign curUrlInstance = sri.getCurrentScreenUrl()>
                 <form-link name="${headerFormId}_clr" id="${headerFormId}_clr" action="${curUrlInstance.path}">
                     <#list hiddenParameterKeys as hiddenParameterKey><input type="hidden" name="${hiddenParameterKey}" value="${hiddenParameterMap.get(hiddenParameterKey)!""}"></#list>
+                    <#-- sssonline (#1344 follow-up, 2026-11-12): the quick-clear x keeps the form's HIDDEN search fields at their
+                         current values, exactly as Search Options > Clear Parameters + Search does (clearForm never clears hidden
+                         inputs). They carry the page's context, not a filter the user typed: the record the page is about (partyId,
+                         facilityId, timePeriodId, ...), or Simple Report's dataDocumentId and runValues, which the x used to drop,
+                         landing on an empty page. Visible filters, the saved search, the sort and paging are still cleared. -->
+                    <#list formNode["field"] as qcFieldNode><#if qcFieldNode["header-field"]?has_content>
+                        <#assign qcHeaderNode = qcFieldNode["header-field"][0]>
+                        <#assign qcOnlyHidden = qcHeaderNode["hidden"]?has_content>
+                        <#list qcHeaderNode?children as qcWidgetNode><#if qcWidgetNode?node_name != "set" && qcWidgetNode?node_name != "hidden"><#assign qcOnlyHidden = false></#if></#list>
+                        <#assign qcName = qcFieldNode["@name"]>
+                        <#if qcOnlyHidden && !hiddenParameterMap.containsKey(qcName) && !["formListFindId", "pageIndex", "pageSize", "orderByField"]?seq_contains(qcName)>
+                            <#assign qcValue = sri.getFieldValuePlainString(qcFieldNode, qcHeaderNode["hidden"][0]["@default-value"]!"")>
+                            <#if qcValue?has_content><input type="hidden" name="${qcName}" value="${qcValue?html}"></#if>
+                        </#if>
+                    </#if></#list>
                     <button id="${headerFormId}-quick-clear" type="submit" name="clearParameters" style="float:left; padding: 0 5px 0 5px; margin: 0 4px 0 0;" class="btn btn-primary btn-sm"><i class="fa fa-remove"></i></button>
                 </form-link>
             </#if>
