@@ -408,16 +408,9 @@ Vue.component('container-dialog', {
                         $select2Container.attr('title', titleText);
                         $select2Container.attr('data-original-title', titleText);
                         $select2Container.tooltip({ trigger: 'hover', container: 'body' }).on('click', function(){ $(this).tooltip('hide'); });
-                        // card #1037: select2 also writes the selected option's text into a NATIVE title on its
-                        // inner rendered span. On a drop-down that already carries the in-app tooltip above, that
-                        // is two tooltips for one hover - the Bootstrap one explaining the field and the browser's
-                        // own repeating what is already visible in the closed control. Drop the native one, and
-                        // again after each change because select2 re-renders that span and re-adds it. Scoped to
-                        // containers that have an in-app tooltip, so every other drop-down keeps select2's
-                        // truncation-reveal.
-                        $select2Container.find('.select2-selection__rendered').removeAttr('title');
-                        $select.off('change.aspenDupTip').on('change.aspenDupTip', function() {
-                            $select2Container.find('.select2-selection__rendered').removeAttr('title'); });
+                        // card #1099 (was #1037's title strip here): select2.js no longer writes a native title of the
+                        // selected value on any drop-down, so there is nothing left to strip. data-title is only set
+                        // when the field's help stays on the drop-down (no label/header, or tooltip-on-header="false").
                     }
                 }
             });

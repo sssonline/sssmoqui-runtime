@@ -58,3 +58,16 @@ ajaxResultsLoading is now set when the debounced request is scheduled (not
 only when its timer fires) and cleared on the failure/abort path (it was
 only ever cleared on success, leaving a dropdown ENTER/TAB-deaf after one
 failed request). lastKeyTime resets on open. TAB branch unchanged.
+
+20261113 SSS (card 1043, follow-up):
+The ajax success handler now clears ajaxResultsLoading BEFORE callback(results).
+callback() fires results:all, where the deferred-ENTER replay runs; it returns
+early while the flag is set, so with the flag cleared after the callback a
+deferred ENTER was never committed once a slow search's results arrived.
+
+20261113 SSS (card 1099):
+SingleSelection.update and MultipleSelection.update no longer set a native
+title (the selected option's text) on .select2-selection__rendered and on each
+li.select2-selection__choice: no browser popup of the selected value on any
+drop-down. Field help is an in-app tooltip on the field's label/header.
+Multi-select chip reorder (basalt common.js) reads $(chip).data('data').

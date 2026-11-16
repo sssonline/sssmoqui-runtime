@@ -1585,7 +1585,9 @@ S2.define('select2/selection/single',[
     var formatted = this.display(selection, $rendered);
 
     $rendered.empty().append(formatted);
-    $rendered.prop('title', selection.title || selection.text);
+    // SSS card 1099 (20261113): no native title (the browser's own popup) of the selected value on any drop-down;
+    // the field's help is an in-app tooltip on its label/header, and a long value is read by opening the drop-down
+    // $rendered.prop('title', selection.title || selection.text);
   };
 
   return SingleSelection;
@@ -1686,7 +1688,8 @@ S2.define('select2/selection/multiple',[
       var formatted = this.display(selection, $selection);
 
       $selection.append(formatted);
-      $selection.prop('title', selection.title || selection.text);
+      // SSS card 1099 (20261113): no native title on a chosen item either (see SingleSelection.update)
+      // $selection.prop('title', selection.title || selection.text);
 
       $selection.data('data', selection);
 
@@ -3503,9 +3506,12 @@ S2.define('select2/data/ajax',[
           }
         }
 
-        callback(results);
         // DEJ 20200408 next line: if no options and/or options are loading ignore ENTER
+        // card 1043 (20261113): cleared BEFORE callback(results), which fires results:all; the deferred-ENTER replay
+        // (commitPendingEnter) runs there and returns early while this flag is still true, so with the old order a
+        // deferred ENTER was never committed when the results arrived
         self.options.set('ajaxResultsLoading', false);
+        callback(results);
       }, function () {
         // card 1043: a failed or aborted request must not leave the dropdown ENTER/TAB-deaf
         // for the rest of the page's life (an abort is immediately followed by a new request,

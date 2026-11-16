@@ -484,17 +484,21 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
     <#assign fsFieldRow = false>
 </#macro>
 <#macro "field-row-big">
+    <#-- #1099: a row of inputs sharing one label carries one hand-written help on that label (@tooltip, only with a
+         @title); it replaces the help of every input in the row, so those inputs show none (fsRowHelp) -->
+    <#assign rowHelp = "">
+    <#if .node["@title"]?has_content><#assign rowHelp = ec.getResource().expand(.node["@tooltip"]!"", "")></#if>
     <#-- funny assign here to not render row if there is no content -->
-    <#assign fsFieldRow = true><#assign fsBigRow = true>
+    <#assign fsFieldRow = true><#assign fsBigRow = true><#assign fsRowHelp = rowHelp?has_content>
     <#assign rowContent>
         <#recurse .node/>
     </#assign>
     <#assign rowContent = rowContent?trim>
-    <#assign fsFieldRow = false><#assign fsBigRow = false>
+    <#assign fsFieldRow = false><#assign fsBigRow = false><#assign fsRowHelp = false>
     <#if rowContent?has_content>
     <div class="form-group">
     <#if .node["@title"]?has_content>
-        <label class="control-label col-sm-2">${ec.getResource().expand(.node["@title"], "")}</label>
+        <label class="control-label col-sm-2"><#if rowHelp?has_content><span data-toggle="tooltip" title="${rowHelp?html}">${ec.getResource().expand(.node["@title"], "")}</span><#else>${ec.getResource().expand(.node["@title"], "")}</#if></label>
         <div class="col-sm-10">
     <#else>
         <div class="col-sm-12">
@@ -577,11 +581,15 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
     <#if fieldSubNode["hidden"]?has_content><#recurse fieldSubNode/><#return></#if>
     <#assign containerStyle = ec.getResource().expandNoL10n(fieldSubNode["@container-style"]!, "")>
     <#assign curFieldTitle><@fieldTitle fieldSubNode/></#assign>
+    <#-- #1099: the field's help goes on its label (Find popup labels too: there the sub-node is the header-field) -->
+    <#assign curFieldHelp = "">
+    <#if !fieldSubNode["submit"]?has_content && !titleIsBlank(curFieldTitle)><#assign curFieldHelp = fieldHelpText(fieldSubNode)></#if>
+    <#assign curFieldLabel><#if curFieldHelp?has_content><span data-toggle="tooltip" title="${curFieldHelp?html}">${curFieldTitle}</span><#else>${curFieldTitle}</#if></#assign>
     <#if bigRow>
         <div class="big-row-item">
             <div class="form-group">
                 <#if curFieldTitle?has_content && !fieldSubNode["submit"]?has_content>
-                    <label class="control-label" for="${formSingleId}_${fieldSubParent["@name"]}">${curFieldTitle}</label><#-- was form-title -->
+                    <label class="control-label" for="${formSingleId}_${fieldSubParent["@name"]}">${curFieldLabel}</label><#-- was form-title -->
                 </#if>
     <#else>
         <#-- NOTE: this style is only good for 2 fields in a field-row! in field-row cols are double size because are inside a ${colPrefix}-6 element -->
@@ -598,12 +606,16 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
             <div class="${widgetClass}<#if containerStyle?has_content> ${containerStyle}</#if>">
         <#elseif curFieldTitle?has_content>
         <div class="form-group">
-            <label class="control-label ${labelClass}" for="${formSingleId}_${fieldSubParent["@name"]}">${curFieldTitle}</label><#-- was form-title -->
+            <label class="control-label ${labelClass}" for="${formSingleId}_${fieldSubParent["@name"]}">${curFieldLabel}</label><#-- was form-title -->
             <div class="${widgetClass}<#if containerStyle?has_content> ${containerStyle}</#if>">
         </#if>
     </#if>
     <#t>${sri.pushContext()}
     <#assign fieldFormId = formSingleId><#-- set this globally so fieldId macro picks up the proper formSingleId, clear after -->
+    <#-- #1099: read by inputHelp(), restored after the field (a form nested in a dialog here must not clear it for the
+         widgets after the dialog); a shared-label row's own help replaces its inputs' help -->
+    <#local outerHelpOnLabel = fieldHelpOnLabel!false>
+    <#assign fieldHelpOnLabel = curFieldHelp?has_content || (bigRow && (fsRowHelp!false))>
     <#list fieldSubNode?children as widgetNode><#if widgetNode?node_name == "set">${sri.setInContext(widgetNode)}</#if></#list>
     <#list fieldSubNode?children as widgetNode>
         <#if widgetNode?node_name == "link">
@@ -633,6 +645,7 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
         </#if>
     </#list>
     <#assign fieldFormId = ""><#-- clear after field so nothing else picks it up -->
+    <#assign fieldHelpOnLabel = outerHelpOnLabel>
     <#t>${sri.popContext()}
     <#if bigRow>
         <#-- <#if curFieldTitle?has_content></#if> -->
@@ -1644,13 +1657,15 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
     <#assign defaultFieldNode = fieldNode["default-field"][0]!>
     <#assign containerStyle = ec.getResource().expandNoL10n(headerFieldNode["@container-style"]!, "")>
     <#assign headerAlign = fieldNode["@align"]!"left">
-    <#-- sssonline (Simple Report #1157): a field's tooltip also shows on its column header; only a static one, since a
-         row tooltip may use row values that don't exist when the header renders -->
-    <#assign headerTooltip = fieldSubNode["@tooltip"]!"">
-    <#if headerTooltip?contains(r"${")><#assign headerTooltip = ""></#if>
+    <#-- #1099 (was #1157): the field's help shows on its column header, chosen by listHeaderHelp's precedence; a blank
+         header carries none (the cells keep it). fieldHelpHeaderMap tells formListWidget the header has it. -->
+    <#assign headerTitleText><@fieldTitle fieldSubNode/></#assign>
+    <#assign headerTooltip = "">
+    <#if !fieldSubNode["submit"]?has_content && !titleIsBlank(headerTitleText)><#assign headerTooltip = listHeaderHelp(fieldNode)></#if>
+    <#if headerTooltip?has_content><#assign fieldHelpHeaderMap = (fieldHelpHeaderMap!{}) + {(formId!"") + "|" + fieldNode["@name"]: true}></#if>
     <#t><div class="form-title<#if containerStyle?has_content> ${containerStyle}</#if><#if headerAlign == "center"> text-center<#elseif headerAlign == "right"> text-right</#if>">
         <#-- #1302: the tooltip sits on the header text itself, so it shows right above the words rather than centered over the whole column -->
-        <#t><#if fieldSubNode["submit"]?has_content>&nbsp;<#elseif headerTooltip?has_content><span data-toggle="tooltip" title="${headerTooltip?html}"><@fieldTitle fieldSubNode/></span><#else><@fieldTitle fieldSubNode/></#if>
+        <#t><#if fieldSubNode["submit"]?has_content>&nbsp;<#elseif headerTooltip?has_content><span data-toggle="tooltip" title="${headerTooltip?html}">${headerTitleText}</span><#else>${headerTitleText}</#if>
         <#if fieldSubNode["@show-order-by"]! == "true" || fieldSubNode["@show-order-by"]! == "case-insensitive">
             <#assign caseInsensitive = fieldSubNode["@show-order-by"]! == "case-insensitive">
             <#assign curFieldName = fieldNode["@name"]>
@@ -1729,6 +1744,9 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
     <#if fieldSubParent["@align"]! == "right"><#assign containerStyle = containerStyle + " text-right"><#elseif fieldSubParent["@align"]! == "center"><#assign containerStyle = containerStyle + " text-center"></#if>
     <#if !isMultiFinalRow && !isHeaderField><#if skipCell><div class="form-group<#if containerStyle?has_content>  ${containerStyle}</#if>"><#else><td class="form-group<#if containerStyle?has_content> ${containerStyle}</#if>"></#if></#if>
     <#t>${sri.pushContext()}
+    <#-- #1099: when the column header shows this field's help, the cell's inputs and values carry none (restored after) -->
+    <#local outerHelpOnLabel = fieldHelpOnLabel!false>
+    <#assign fieldHelpOnLabel = ((fieldHelpHeaderMap!{})[(formId!"") + "|" + fieldSubParent["@name"]])!false>
     <#list fieldSubNode?children as widgetNode><#if widgetNode?node_name == "set">${sri.setInContext(widgetNode)}</#if></#list>
     <#list fieldSubNode?children as widgetNode>
         <#if widgetNode?node_name == "link">
@@ -1760,6 +1778,7 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
             <#t><#if widgetNodeText?has_content>${widgetNodeText}<#else>&nbsp;</#if>
         </#if>
     </#list>
+    <#assign fieldHelpOnLabel = outerHelpOnLabel>
     <#t>${sri.popContext()}
     <#if !isMultiFinalRow && !isHeaderField><#if skipCell></div><#else></td></#if></#if>
 </#macro>
@@ -1780,6 +1799,46 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
     </#if>
     <#t><#assign titleValue><#if fieldSubNode["@title"]?has_content>${ec.getResource().expand(fieldSubNode["@title"], "")}<#else><#list fieldSubNode?parent["@name"]?split("(?=[A-Z])", "r") as nameWord>${nameWord?cap_first?replace("Id", "ID")}<#if nameWord_has_next> </#if></#list></#if></#assign>${ec.getL10n().localize(titleValue)}
 </#macro>
+<#-- ===== #1099 field help placement (UI contract: Forms "Field help", Tables header precedence) =====
+     A field's help (its sub-node @tooltip) shows once, as an in-app tooltip on the field's label (form-single, Find
+     popup) or column header (form-list), never on the input. The input keeps it as an in-app bubble only when there is
+     no visible label/header to carry it, or when the sub-node sets tooltip-on-header="false". formSingleWidget and
+     formListWidget set fieldHelpOnLabel around the widgets of one field; inputHelp() is what every input widget emits.
+     Buttons (submit, reset, links, container-dialog) and label widgets keep their own tooltip. -->
+<#-- the help a label/header shows for one sub-node: "" when it has none, opts out, or (a ${} help) can't be expanded here -->
+<#function fieldHelpText subNode>
+    <#if !subNode?has_content><#return ""></#if>
+    <#local tt = subNode["@tooltip"]!"">
+    <#if !tt?has_content || subNode["@tooltip-on-header"]! == "false"><#return ""></#if>
+    <#if !tt?contains(r"${")><#return ec.getResource().expand(tt, "")></#if>
+    <#-- a help that reads row values can't be filled in on a column header: blank or failed means it stays on the cell -->
+    <#attempt><#local help = (ec.getResource().expand(tt, ""))!""><#recover><#local help = ""></#attempt>
+    <#-- a row value missing at the header comes out as "null" -->
+    <#if help?matches(r"(?s).*\bnull\b.*")><#local help = ""></#if>
+    <#return help?trim>
+</#function>
+<#-- the help a list column header shows: the Find-popup filter help, then the entry-row help, then later rows, then
+     existing rows (default-field), then the first conditional-field with help; button columns carry none -->
+<#function listHeaderHelp fieldNode>
+    <#list ["header-field", "first-row-field", "second-row-field", "last-row-field", "default-field", "conditional-field"] as subName>
+        <#list fieldNode[subName] as subNode>
+            <#if subNode["submit"]?has_content || subNode["reset"]?has_content><#continue></#if>
+            <#local help = fieldHelpText(subNode)>
+            <#if help?has_content><#return help></#if>
+        </#list>
+    </#list>
+    <#return "">
+</#function>
+<#-- true when a rendered title is blank (title="" or a bare &nbsp;), i.e. there is no label/header to carry help -->
+<#function titleIsBlank titleText><#return !titleText?replace("&nbsp;", " ")?trim?has_content></#function>
+<#-- what an input widget emits as its own help: "" when its label/header already shows the field's help -->
+<#function inputHelp widgetNode>
+    <#local subNode = widgetNode?parent>
+    <#local tt = subNode["@tooltip"]!"">
+    <#if !tt?has_content><#return ""></#if>
+    <#if (fieldHelpOnLabel!false) && subNode["@tooltip-on-header"]! != "false"><#return ""></#if>
+    <#return ec.getResource().expand(tt, "")>
+</#function>
 <#macro fieldIdByName fieldName><#if fieldFormId?has_content>${fieldFormId}<#else>${ec.getResource().expandNoL10n(formNode["@name"], "")}</#if>_${fieldName}<#if listEntryIndex?has_content>_${listEntryIndex}</#if><#if sectionEntryIndex?has_content>_${sectionEntryIndex}</#if></#macro>
 
 <#macro field><#-- shouldn't be called directly, but just in case --><#recurse/></#macro>
@@ -1798,7 +1857,7 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
         <#assign allChecked = ec.getResource().expandNoL10n(.node["@all-checked"]!, "")>
         <#assign fullId = tlId>
         <#if (key_index > 0)><#assign fullId = tlId + "_" + key_index></#if>
-        <span id="${fullId}"<#if containerStyle?has_content> class="${containerStyle}"</#if>><input type="checkbox" name="${curName}" value="${key?html}"<#if allChecked! == "true"> checked="checked"<#elseif currentValue?has_content && (currentValue==key || currentValue.contains(key))> checked="checked"</#if><#if .node?parent["@tooltip"]?has_content> data-toggle="tooltip" title="${ec.getResource().expand(.node?parent["@tooltip"], "")}"</#if><#if ownerForm?has_content> form="${ownerForm}"</#if>><#if options.get(key)! != ""><span class="checkbox-label" onclick="$('#${fullId}').children('input[type=checkbox]').click()" style="cursor: default">${options.get(key)}</span></#if></span>
+        <span id="${fullId}"<#if containerStyle?has_content> class="${containerStyle}"</#if>><input type="checkbox" name="${curName}" value="${key?html}"<#if allChecked! == "true"> checked="checked"<#elseif currentValue?has_content && (currentValue==key || currentValue.contains(key))> checked="checked"</#if><#if inputHelp(.node)?has_content> data-toggle="tooltip" title="${inputHelp(.node)}"</#if><#if ownerForm?has_content> form="${ownerForm}"</#if>><#if options.get(key)! != ""><span class="checkbox-label" onclick="$('#${fullId}').children('input[type=checkbox]').click()" style="cursor: default">${options.get(key)}</span></#if></span>
     </#list>
 </#macro>
 
@@ -1818,13 +1877,13 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
     <span class="form-date-find">
       <span>${ec.getL10n().localize("From")}&nbsp;</span>
       <date-time id="<@fieldId .node/>_from" name="${curFieldName}_from" value="${fieldValueFrom?html}" type="${.node["@type"]!""}" size="${.node["@size"]!""}"<#rt>
-        <#t><#if .node?parent["@tooltip"]?has_content> tooltip="${ec.getResource().expand(.node?parent["@tooltip"], "")}"<#else> tooltip="From"</#if>
+        <#t><#if inputHelp(.node)?has_content> tooltip="${inputHelp(.node)}"</#if>
         <#t><#if ownerForm?has_content> form="${ownerForm}"</#if><#if javaFormat?has_content> format="<@getMomentDateFormat javaFormat/>"</#if>/>
     </span>
     <span class="form-date-find">
       <span>${ec.getL10n().localize("Thru")}&nbsp;</span>
       <date-time id="<@fieldId .node/>_thru" name="${curFieldName}_thru" value="${fieldValueThru?html}" type="${.node["@type"]!""}" size="${.node["@size"]!""}"<#rt>
-          <#t><#if .node?parent["@tooltip"]?has_content> tooltip="${ec.getResource().expand(.node?parent["@tooltip"], "")}"<#else> tooltip="Thru"</#if>
+          <#t><#if inputHelp(.node)?has_content> tooltip="${inputHelp(.node)}"</#if>
           <#t><#if ownerForm?has_content> form="${ownerForm}"</#if><#if javaFormat?has_content> format="<@getMomentDateFormat javaFormat/>"</#if>/>
     </span>
 </#macro>
@@ -1839,7 +1898,7 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
     <#assign allowEmpty = .node["@allow-empty"]!"true">
     <#if .node["@time"]! == "true"><#assign fromThruType = "date-time"><#else><#assign fromThruType = "date"></#if>
     <date-period name="${curFieldName}" id="${tlId}" :allow-empty="${allowEmpty}" offset="${fvOffset}" period="${fvPeriod}" from-thru-type="${fromThruType}"
-         date="${fvDate}" from-date="${fvFromDate}" thru-date="${fvThruDate}" <#if .node?parent["@tooltip"]?has_content> data-toggle="tooltip" title="${ec.getResource().expand(.node?parent["@tooltip"], "")}"</#if><#if ownerForm?has_content> form="${ownerForm}"</#if>/>
+         date="${fvDate}" from-date="${fvFromDate}" thru-date="${fvThruDate}" <#if inputHelp(.node)?has_content> data-toggle="tooltip" title="${inputHelp(.node)}"</#if><#if ownerForm?has_content> form="${ownerForm}"</#if>/>
 </#macro>
 
 <#--
@@ -1883,7 +1942,7 @@ a => A, d => D, y => Y
     <#assign fieldValue = sri.getFieldValueString(dtFieldNode, .node["@default-value"]!"", javaFormat)>
     <#assign validationClasses = formInstance.getFieldValidationClasses(dtSubFieldNode)>
     <date-time id="<@fieldId .node/>" name="<@fieldName .node/>" value="${fieldValue?html}" type="${.node["@type"]!""}" size="${.node["@size"]!""}"<#rt>
-        <#t><#if .node?parent["@tooltip"]?has_content> tooltip="${ec.getResource().expand(.node?parent["@tooltip"], "")}"</#if>
+        <#t><#if inputHelp(.node)?has_content> tooltip="${inputHelp(.node)}"</#if>
         <#t><#if ownerForm?has_content> form="${ownerForm}"</#if><#if javaFormat?has_content> format="<@getMomentDateFormat javaFormat/>"</#if>
         <#t><#if validationClasses?contains("required")> required="required"</#if> auto-year="${.node["@auto-year"]!"true"}" auto-month="${.node["@auto-month"]!"false"}" :minuteStep="${.node["@minute-stepping"]!"5"}"/>
 </#macro>
@@ -1923,7 +1982,7 @@ a => A, d => D, y => Y
         </#if>
     </#if>
     <#if dispDynamic && !fieldValue?has_content><#assign fieldValue><@widgetTextValue .node true/></#assign></#if>
-    <#t><span class="text-inline ${sri.getFieldValueClass(dispFieldNode)}<#if .node["@currency-unit-field"]?has_content> currency</#if><#if dispAlign == "center"> text-center<#elseif dispAlign == "right"> text-right</#if><#if .node["@style"]?has_content> ${ec.getResource().expandNoL10n(.node["@style"], "")}</#if>"<#if .node?parent["@tooltip"]?has_content> data-toggle="tooltip" title="${ec.getResource().expand(.node?parent["@tooltip"], "")}"</#if><#if dispDynamic> id="${dispFieldId}_display"</#if>>
+    <#t><span class="text-inline ${sri.getFieldValueClass(dispFieldNode)}<#if .node["@currency-unit-field"]?has_content> currency</#if><#if dispAlign == "center"> text-center<#elseif dispAlign == "right"> text-right</#if><#if .node["@style"]?has_content> ${ec.getResource().expandNoL10n(.node["@style"], "")}</#if>"<#if inputHelp(.node)?has_content> data-toggle="tooltip" title="${inputHelp(.node)}"</#if><#if dispDynamic> id="${dispFieldId}_display"</#if>>
     <#t><#if fieldValue?has_content><#if .node["@encode"]! == "false">${fieldValue}<#else>${fieldValue?html?replace("\n", "<br>")}</#if><#else>&nbsp;</#if>
     <#t></span>
     <#t><#if dispHidden>
@@ -2029,7 +2088,7 @@ a => A, d => D, y => Y
     </#if>
     <drop-down name="${name}" id="${tlId}" class="<#if isDynamicOptions> dynamic-options</#if><#if .node["@style"]?has_content> ${ec.getResource().expandNoL10n(.node["@style"], "")}</#if><#if allowReorder && allowMultiple> allow-reorder</#if><#if validationClasses?has_content> ${validationClasses}</#if>"<#rt>
             <#t><#if allowMultiple> multiple="multiple"</#if><#if allowEmpty> :allow-empty="true"</#if><#if prioritySearch> :priority-search="true"</#if><#if .node["@combo-box"]! == "true"> :combo="true"</#if>
-            <#t><#if .node?parent["@tooltip"]?has_content> tooltip="${ec.getResource().expand(.node?parent["@tooltip"], "")}"</#if>
+            <#t><#if inputHelp(.node)?has_content> tooltip="${inputHelp(.node)}"</#if>
             <#t><#if ownerForm?has_content> form="${ownerForm}"</#if><#if .node["@size"]?has_content> size="${.node["@size"]}"</#if>
             <#t><#if allowMultiple> :value="[<#list currentValueList as curVal><#if curVal?has_content>'${curVal}',</#if></#list>]"<#else> value="${currentValue!}"</#if>
             <#t><#if .node["@submit-on-select"]! == "true"> :submit-on-select="true"</#if>
@@ -2051,7 +2110,7 @@ a => A, d => D, y => Y
     <#if allowMultiple><input type="hidden" id="${tlId}_op" name="${name}_op" value="in"></#if>
 </#macro>
 
-<#macro file><input type="file" class="form-control" name="<@fieldName .node/>"<#if .node.@multiple! == "true"> multiple</#if><#if .node.@accept?has_content> accept="${.node.@accept}"</#if> value="${sri.getFieldValueString(.node)?html}" size="${.node.@size!"30"}"<#if .node.@maxlength?has_content> maxlength="${.node.@maxlength}"</#if><#if .node?parent["@tooltip"]?has_content> data-toggle="tooltip" title="${ec.getResource().expand(.node?parent["@tooltip"], "")}"</#if><#if ownerForm?has_content> form="${ownerForm}"</#if>></#macro>
+<#macro file><input type="file" class="form-control" name="<@fieldName .node/>"<#if .node.@multiple! == "true"> multiple</#if><#if .node.@accept?has_content> accept="${.node.@accept}"</#if> value="${sri.getFieldValueString(.node)?html}" size="${.node.@size!"30"}"<#if .node.@maxlength?has_content> maxlength="${.node.@maxlength}"</#if><#if inputHelp(.node)?has_content> data-toggle="tooltip" title="${inputHelp(.node)}"</#if><#if ownerForm?has_content> form="${ownerForm}"</#if>></#macro>
 
 <#macro hidden>
     <#-- use getFieldValuePlainString() and not getFieldValueString() so we don't do timezone conversions, etc -->
@@ -2063,7 +2122,7 @@ a => A, d => D, y => Y
 
 <#macro password>
     <#assign validationClasses = formInstance.getFieldValidationClasses(.node?parent)>
-    <input type="password" name="<@fieldName .node/>" id="<@fieldId .node/>" class="form-control<#if validationClasses?has_content> ${validationClasses}</#if>" size="${.node.@size!"25"}"<#if .node.@maxlength?has_content> maxlength="${.node.@maxlength}"</#if><#if .node?parent["@tooltip"]?has_content> data-toggle="tooltip" title="${ec.getResource().expand(.node?parent["@tooltip"], "")}"</#if><#if validationClasses?contains("required")> required</#if><#if ownerForm?has_content> form="${ownerForm}"</#if>>
+    <input type="password" name="<@fieldName .node/>" id="<@fieldId .node/>" class="form-control<#if validationClasses?has_content> ${validationClasses}</#if>" size="${.node.@size!"25"}"<#if .node.@maxlength?has_content> maxlength="${.node.@maxlength}"</#if><#if inputHelp(.node)?has_content> data-toggle="tooltip" title="${inputHelp(.node)}"</#if><#if validationClasses?contains("required")> required</#if><#if ownerForm?has_content> form="${ownerForm}"</#if>>
 </#macro>
 
 <#macro radio>
@@ -2073,7 +2132,7 @@ a => A, d => D, y => Y
     <#assign tlId><@fieldId .node/></#assign>
     <#assign curName><@fieldName .node/></#assign>
     <#list (options.keySet())! as key>
-        <span id="${tlId}<#if (key_index > 0)>_${key_index}</#if>"><input type="radio" name="${curName}" value="${key?html}"<#if currentValue?has_content && currentValue==key> checked="checked"</#if><#if .node?parent["@tooltip"]?has_content> data-toggle="tooltip" title="${ec.getResource().expand(.node?parent["@tooltip"], "")}"</#if><#if ownerForm?has_content> form="${ownerForm}"</#if>>&nbsp;${options.get(key)!""}</span>
+        <span id="${tlId}<#if (key_index > 0)>_${key_index}</#if>"><input type="radio" name="${curName}" value="${key?html}"<#if currentValue?has_content && currentValue==key> checked="checked"</#if><#if inputHelp(.node)?has_content> data-toggle="tooltip" title="${inputHelp(.node)}"</#if><#if ownerForm?has_content> form="${ownerForm}"</#if>>&nbsp;${options.get(key)!""}</span>
     </#list>
 </#macro>
 
@@ -2081,10 +2140,10 @@ a => A, d => D, y => Y
     <#assign curFieldName><@fieldName .node/></#assign>
     <#assign tlId><@fieldId .node/></#assign>
 <span class="form-range-find">
-    <span>${ec.getL10n().localize("From")}&nbsp;</span><input type="text" class="form-control" name="${curFieldName}_from" value="${ec.getContext().get(curFieldName + "_from")!?default(.node["@default-value-from"]!"")?html}" size="${.node.@size!"10"}"<#if .node.@maxlength?has_content> maxlength="${.node.@maxlength}"</#if> id="${tlId}_from"<#if .node?parent["@tooltip"]?has_content> data-toggle="tooltip" title="${ec.getResource().expand(.node?parent["@tooltip"], "")}"</#if><#if ownerForm?has_content> form="${ownerForm}"</#if>>
+    <span>${ec.getL10n().localize("From")}&nbsp;</span><input type="text" class="form-control" name="${curFieldName}_from" value="${ec.getContext().get(curFieldName + "_from")!?default(.node["@default-value-from"]!"")?html}" size="${.node.@size!"10"}"<#if .node.@maxlength?has_content> maxlength="${.node.@maxlength}"</#if> id="${tlId}_from"<#if inputHelp(.node)?has_content> data-toggle="tooltip" title="${inputHelp(.node)}"</#if><#if ownerForm?has_content> form="${ownerForm}"</#if>>
 </span>
 <span class="form-range-find">
-    <span>${ec.getL10n().localize("Thru")}&nbsp;</span><input type="text" class="form-control" name="${curFieldName}_thru" value="${ec.getContext().get(curFieldName + "_thru")!?default(.node["@default-value-thru"]!"")?html}" size="${.node.@size!"10"}"<#if .node.@maxlength?has_content> maxlength="${.node.@maxlength}"</#if> id="${tlId}_thru"<#if .node?parent["@tooltip"]?has_content> data-toggle="tooltip" title="${ec.getResource().expand(.node?parent["@tooltip"], "")}"</#if><#if ownerForm?has_content> form="${ownerForm}"</#if>>
+    <span>${ec.getL10n().localize("Thru")}&nbsp;</span><input type="text" class="form-control" name="${curFieldName}_thru" value="${ec.getContext().get(curFieldName + "_thru")!?default(.node["@default-value-thru"]!"")?html}" size="${.node.@size!"10"}"<#if .node.@maxlength?has_content> maxlength="${.node.@maxlength}"</#if> id="${tlId}_thru"<#if inputHelp(.node)?has_content> data-toggle="tooltip" title="${inputHelp(.node)}"</#if><#if ownerForm?has_content> form="${ownerForm}"</#if>>
 </span>
 </#macro>
 
@@ -2113,7 +2172,7 @@ a => A, d => D, y => Y
     <#assign editorType = ec.getResource().expand(.node["@editor-type"]!"", "")>
     <textarea v-pre class="form-control" name="<@fieldName .node/>" id="${textAreaId}" <#if .node["@cols"]?has_content>cols="${.node["@cols"]}"<#else>style="width:100%;"</#if>
         rows="${.node["@rows"]!"3"}"<#if .node["@read-only"]! == "true"> readonly="readonly"</#if><#if .node["@maxlength"]?has_content> maxlength="${.node["@maxlength"]}"</#if>
-        <#if .node?parent["@tooltip"]?has_content> data-toggle="tooltip" title="${ec.getResource().expand(.node?parent["@tooltip"], "")}"</#if><#if ownerForm?has_content> form="${ownerForm}"</#if>><#rt>
+        <#if inputHelp(.node)?has_content> data-toggle="tooltip" title="${inputHelp(.node)}"</#if><#if ownerForm?has_content> form="${ownerForm}"</#if>><#rt>
 ${sri.getFieldValueString(.node)?html}</textarea>
     <#if editorType == "html">
         <#-- support CSS from editorScreenThemeId with resourceTypeEnumId=STRT_STYLESHEET, like: contentsCss:['/css/mysitestyles.css','/css/anotherfile.css']; -->
@@ -2163,7 +2222,7 @@ ${sri.getFieldValueString(.node)?html}</textarea>
                 <#t><#if validationClasses?has_content> validation-classes="${validationClasses}"</#if>
                 <#t><#if validationClasses?contains("required")> :required="true"</#if>
                 <#t><#if regexpInfo?has_content> pattern="${regexpInfo.regexp}" data-msg-pattern="${regexpInfo.message!"Invalid format"}"</#if>
-                <#t><#if .node?parent["@tooltip"]?has_content> tooltip="${ec.getResource().expand(.node?parent["@tooltip"], "")}"</#if>
+                <#t><#if inputHelp(.node)?has_content> tooltip="${inputHelp(.node)}"</#if>
                 <#t><#if ownerForm?has_content> form="${ownerForm}"</#if>
                 <#t><#if .node["@ac-min-length"]?has_content> :min-length="${.node["@ac-min-length"]}"</#if>
                 <#t> :depends-on="{<#list depNodeList as depNode><#local depNodeField = depNode["@field"]>'${depNode["@parameter"]!depNodeField}':'<@fieldIdByName depNodeField/>'<#sep>, </#list>}"
@@ -2179,7 +2238,7 @@ ${sri.getFieldValueString(.node)?html}</textarea>
             <#t><#if .node["@read-only"]! == "true"> readonly="readonly"</#if>
             <#t> class="form-control<#if validationClasses?has_content> ${validationClasses}</#if><#if tlAlign == "center"> text-center<#elseif tlAlign == "right"> text-right</#if>"
             <#t><#if validationClasses?contains("required")> required</#if><#if regexpInfo?has_content> pattern="${regexpInfo.regexp}" data-msg-pattern="${regexpInfo.message!"Invalid format"}"</#if>
-            <#t><#if .node?parent["@tooltip"]?has_content> data-toggle="tooltip" title="${ec.getResource().expand(.node?parent["@tooltip"], "")}"</#if>
+            <#t><#if inputHelp(.node)?has_content> data-toggle="tooltip" title="${inputHelp(.node)}"</#if>
             <#t><#if .node["@placeholder"]?has_content> placeholder="${ec.getResource().expand(.node["@placeholder"], "")?html}"</#if>
             <#t><#if .node["@submit-on-blur"]! == "true"> onfocus="moqui.submitOnBlurFocus(this)" onblur="moqui.submitOnBlur(this)"</#if>
             <#t><#if ownerForm?has_content> form="${ownerForm}"</#if>>
@@ -2235,7 +2294,7 @@ ${sri.getFieldValueString(.node)?html}</textarea>
             <option value="empty"<#rt/><#if defaultOperator == "empty"> selected="selected"</#if>>${ec.getL10n().localize("Empty")}</option>
         </select>
     </#if>
-    <input type="text" class="form-control" name="${curFieldName}" value="${sri.getFieldValueString(.node)?html}" size="${.node.@size!"30"}"<#if .node.@maxlength?has_content> maxlength="${.node.@maxlength}"</#if> id="<@fieldId .node/>"<#if .node?parent["@tooltip"]?has_content> data-toggle="tooltip" title="${ec.getResource().expand(.node?parent["@tooltip"], "")}"</#if><#if ownerForm?has_content> form="${ownerForm}"</#if>>
+    <input type="text" class="form-control" name="${curFieldName}" value="${sri.getFieldValueString(.node)?html}" size="${.node.@size!"30"}"<#if .node.@maxlength?has_content> maxlength="${.node.@maxlength}"</#if> id="<@fieldId .node/>"<#if inputHelp(.node)?has_content> data-toggle="tooltip" title="${inputHelp(.node)}"</#if><#if ownerForm?has_content> form="${ownerForm}"</#if>>
     <#assign ignoreCase = (ec.getWeb().parameters.get(curFieldName + "_ic")! == "Y") || !(.node["@ignore-case"]?has_content) || (.node["@ignore-case"] == "true")>
     <#if .node["@hide-options"]! == "true" || .node["@hide-options"]! == "ignore-case">
         <input type="hidden" name="${curFieldName}_ic" value="Y"<#if ownerForm?has_content> form="${ownerForm}"</#if>>
@@ -2354,12 +2413,13 @@ ${sri.getFieldValueString(.node)?html}</textarea>
     <#assign mlClass = ec.getResource().expandNoL10n(.node["@style"]!"", "")>
     <#assign mlTitle = ec.getResource().expand(.node["@title"]!"", "")>
 
-    <#-- tooltip: prefer local @tooltip, else inherit from parent -->
+    <#-- tooltip: prefer local @tooltip, else inherit from parent (#1099: the field's help, which inputHelp() leaves off
+         the input when its label/header already shows it) -->
     <#assign mlTooltip = ec.getResource().expand(.node["@tooltip"]!"", "")>
     <#if !mlTooltip?has_content>
         <#assign _mlParent = .node?parent>
         <#if _mlParent?has_content>
-            <#assign mlTooltip = ec.getResource().expand(_mlParent["@tooltip"]!"", "")>
+            <#assign mlTooltip = inputHelp(.node)>
         </#if>
     </#if>
 
