@@ -1256,21 +1256,29 @@ Vue.component('drop-down', {
             }
         }
     },
-    computed: { curVal: { get: function() { return $(this.$el).select2().val(); },
+    // #1367: read the value off the select itself. A bare .select2() call here re-made the widget (select2 builds a new
+    // instance for every call that passes no method name), tearing down the one on screen each time the value was read
+    computed: { curVal: { get: function() { return $(this.$el).val(); },
         set: function(value) { $(this.$el).val(value).trigger('change'); /* console.log('set ' + $(this.$el).attr('name') + ' to ' + this.curVal); */ } } },
     watch: {
         value: function(value) { this.curVal = value; },
         options: function(options) { this.curData = options; },
         curData: function(options) {
             var jqEl = $(this.$el); var vm = this;
-            var wasFocused = jqEl.next().hasClass('select2-container--focus');
+            // #1367: a dependent drop-down is re-made here when the field it depends on changes, often just after Tab moved
+            // focus onto it. Focus is read from the document as well as select2's own class, and put back on the new
+            // widget's own selection box, so the Tab that picked a Grower leaves the user on Block/Ranch, not past it.
+            var s2Container = jqEl.next()[0];
+            var wasFocused = jqEl.next().hasClass('select2-container--focus') ||
+                    (s2Container && document.activeElement && (s2Container === document.activeElement || $.contains(s2Container, document.activeElement))) ||
+                    document.activeElement === this.$el;
             // save the lastVal if there is one to remember what was selected even if new options don't have it, just in case options change again
-            var saveVal = jqEl.select2().val(); if (!vm.ignoreKey && saveVal && saveVal.length > 1) this.lastVal = saveVal;
+            var saveVal = jqEl.val(); if (!vm.ignoreKey && saveVal && saveVal.length > 1) this.lastVal = saveVal;
             jqEl.select2('destroy'); jqEl.empty();
             this.s2Opts.data = options;
             jqEl.select2(this.s2Opts).on('change', function () { vm.$emit('input', this.value); });
             if (this.tooltip && this.tooltip.length) jqEl.next().tooltip({ title: function() { return $(this).prev().attr("data-title"); }, placement: "auto", trigger: "hover", container: "body" }).on('click', function(){ $(this).tooltip('hide'); });
-            if (wasFocused) jqEl.focus();
+            if (wasFocused) { var newSelection = jqEl.next().find('.select2-selection'); if (newSelection.length) newSelection.focus(); else jqEl.focus(); }
             setTimeout(function() {
                 var setVal = vm.lastVal; if ((!setVal || setVal.length < 2) && !vm.clearedByUser) { setVal = vm.value; }
                 if (setVal) {
