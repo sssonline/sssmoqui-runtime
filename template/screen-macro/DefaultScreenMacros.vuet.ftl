@@ -1807,7 +1807,9 @@ ${sri.renderIncludeScreen(.node["@location"], .node["@share-scope"]!)}
      Buttons (submit, reset, links, container-dialog) and label widgets keep their own tooltip. -->
 <#-- the help a label/header shows for one sub-node: "" when it has none, opts out, or (a ${} help) can't be expanded here -->
 <#function fieldHelpText subNode>
-    <#if !subNode?has_content><#return ""></#if>
+    <#-- is_node, not has_content: a sub-node with attributes only (header-field title+tooltip, no widget) is "empty"
+         to has_content, which dropped its help (#1281 push-back) -->
+    <#if !subNode?is_node><#return ""></#if>
     <#local tt = subNode["@tooltip"]!"">
     <#if !tt?has_content || subNode["@tooltip-on-header"]! == "false"><#return ""></#if>
     <#if !tt?contains(r"${")><#return ec.getResource().expand(tt, "")></#if>
