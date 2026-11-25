@@ -51,7 +51,6 @@ along with this software (see the LICENSE.md file). If not, see
                 boolean findTests = true
                 boolean directCrudTests = true
                 boolean serviceCrudTests = true
-                boolean directNoSqlCrudTests = true
                 boolean serviceCallTests = true
                 boolean screenRenderTests = true
                 boolean restApiTests = true
@@ -296,71 +295,6 @@ along with this software (see the LICENSE.md file). If not, see
                     milliseconds = ((System.nanoTime() - startTime) / 1E6)
                     performanceList.add([operation     : "service delete", entity: "moqui.test.TestEntity", calls: calls, milliseconds: milliseconds,
                                          msPerCall     : (milliseconds / calls),
-                                         callsPerSecond: ((calls / milliseconds) * 1000)])
-                }
-
-                // ========== NoSQL direct CrUD tests ==========
-                if (directNoSqlCrudTests) {
-                    calls = baseCallsNum
-
-                    // sleep to hopefully let GC do its thing, make times more consistent
-                    sleep(sleepTime)
-
-                    // create with sequenced ID test
-                    startTime = System.nanoTime()
-                    ArrayList<EntityValue> createNoSqlTestList = new ArrayList<EntityValue>(calls * 2)
-                    for (int i = 0; i < calls; i++) {
-                        EntityValue ev = ef.makeValue("moqui.test.TestNoSqlEntity")
-                                .setFields([testMedium       : "Medium " + i,
-                                            testLong         : "Long " + i, testIndicator: "Y", testDateTime: nowTs, testNumberInteger: i,
-                                            testNumberDecimal: (i + 0.5)] as Map<String, Object>, true, null, null).setSequencedIdPrimary().create()
-                        createNoSqlTestList.add(ev)
-                        // logger.warn("===== created TestNoSqlEntity value ${ev}")
-                    }
-                    milliseconds = ((System.nanoTime() - startTime) / 1E6)
-                    performanceList.add([operation     : "direct create with sequenced ID", entity: "moqui.test.TestNoSqlEntity",
-                                         calls         : calls, milliseconds: milliseconds, msPerCall: (milliseconds / calls),
-                                         callsPerSecond: ((calls / milliseconds) * 1000)])
-
-                    // create with preset ID test
-                    startTime = System.nanoTime()
-                    for (int i = 0; i < calls; i++) {
-                        createNoSqlTestList.add(ef.makeValue("moqui.test.TestNoSqlEntity")
-                                .setFields([testId           : ("id" + i),
-                                            testMedium       : "Medium " + i, testLong: "Long " + i, testIndicator: "Y", testDateTime: nowTs,
-                                            testNumberInteger: i, testNumberDecimal: (i + 0.5)] as Map<String, Object>, true, null, null).create())
-                    }
-                    milliseconds = ((System.nanoTime() - startTime) / 1E6)
-                    performanceList.add([operation     : "direct create with preset ID", entity: "moqui.test.TestNoSqlEntity",
-                                         calls         : calls, milliseconds: milliseconds, msPerCall: (milliseconds / calls),
-                                         callsPerSecond: ((calls / milliseconds) * 1000)])
-
-                    // sleep to hopefully let GC do its thing, make times more consistent
-                    sleep(sleepTime)
-
-                    // update test
-                    calls = createNoSqlTestList.size()
-                    startTime = System.nanoTime()
-                    for (int i = 0; i < calls; i++) {
-                        EntityValue ev = (EntityValue) createNoSqlTestList.get(i)
-                        ev.testMedium = (ev.testMedium as String) + " - Updated"
-                        ev.update()
-                    }
-                    milliseconds = ((System.nanoTime() - startTime) / 1E6)
-                    performanceList.add([operation     : "direct update", entity: "moqui.test.TestNoSqlEntity",
-                                         calls         : calls, milliseconds: milliseconds, msPerCall: (milliseconds / calls),
-                                         callsPerSecond: ((calls / milliseconds) * 1000)])
-
-                    // delete
-                    calls = createNoSqlTestList.size()
-                    startTime = System.nanoTime()
-                    for (int i = 0; i < calls; i++) {
-                        EntityValue ev = (EntityValue) createNoSqlTestList.get(i)
-                        ev.delete()
-                    }
-                    milliseconds = ((System.nanoTime() - startTime) / 1E6)
-                    performanceList.add([operation     : "direct delete", entity: "moqui.test.TestNoSqlEntity",
-                                         calls         : calls, milliseconds: milliseconds, msPerCall: (milliseconds / calls),
                                          callsPerSecond: ((calls / milliseconds) * 1000)])
                 }
 

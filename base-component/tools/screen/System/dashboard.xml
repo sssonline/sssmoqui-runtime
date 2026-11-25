@@ -20,10 +20,6 @@ along with this software (see the LICENSE.md file). If not, see
         <actions><script>System.exit(0)</script></actions>
         <default-response url="."/>
     </transition>
-<!--    <transition name="reInitElasticFacade">-->
-<!--        <actions><script>ec.elastic.init()</script></actions>-->
-<!--        <default-response url="."/>-->
-<!--    </transition>-->
 
     <actions>
         <set field="smap" from="ec.factory.getStatusMap(true)"/>
@@ -37,24 +33,6 @@ along with this software (see the LICENSE.md file). If not, see
         <set field="workerPool" from="ec.factory.workerPool"/>
         <set field="jobWorkerPool" from="ec.service.jobWorkerPool"/>
 
-<!--        <set field="esClientList" from="ec.elastic.getClientList()"/>-->
-<!--        <set field="esServerInfoList" from="[]"/>-->
-<!--        <iterate list="esClientList" entry="esClient">-->
-<!--            <script><![CDATA[-->
-<!--                try {-->
-<!--                    esServerInfo = esClient.getServerInfo()-->
-<!--                    if (esServerInfo) {-->
-<!--                        esServerInfo.clientClusterName = esClient.getClusterName()-->
-<!--                        esServerInfo.clusterLocation = esClient.getClusterLocation()-->
-<!--                        esServerInfoList.add(esServerInfo)-->
-<!--                    }-->
-<!--                } catch (Throwable t) {-->
-<!--                    ec.logger.error("Error getting info for Elastic Client", t)-->
-<!--                    esServerInfoList.add([clientClusterName:esClient.getClusterName(),-->
-<!--                        clusterLocation:esClient.getClusterLocation(), name:t.toString(), cluster_name:'ERROR'])-->
-<!--                }-->
-<!--            ]]></script>-->
-<!--        </iterate>-->
     </actions>
     <widgets>
         <container-row><row-col md="6">
@@ -80,13 +58,10 @@ along with this software (see the LICENSE.md file). If not, see
                 <link url="../ArtifactHitBins" text="Artifact Hit Bins"/>
                 <link url="../AuditLog" text="Audit Log"/>
                 <link url="../Visit" text="Visits"/>
-                <link url="../LogViewer" text="Log Viewer"/>
             </box-body></container-box>
         </row-col><row-col md="6">
             <container-box id="DataDocumentsFeeds"><box-header title="Data Documents and Feeds"/><box-body>
-                <link url="../DataDocument/Search" text="Search"/>
                 <link url="../DataDocument/Export" text="Export"/>
-                <link url="../DataDocument/Index" text="Feed Index"/>
                 <link url="../DataDocument/Edit" text="Edit and Report Builder"/>
                 <!-- sssonline: Simple Report (basalt) is mounted in System for the ADMIN group only -->
                 <link url="../SimpleReport" text="Simple Reports" condition="ec.user.isInGroup('ADMIN')"/>
@@ -108,7 +83,6 @@ along with this software (see the LICENSE.md file). If not, see
             <container-dialog id="RequestHeaders" button-text="Request Details">
                 <label text="${ec.web.getRequestDetails()}" type="pre"/>
             </container-dialog>
-<!--            <link url="reInitElasticFacade" text="Re-Init Elastic" confirmation="Try again to initialize configured Elastic Search Clients?"/>-->
             <link url="threadList" text="Thread List"/>
         </box-toolbar><box-body>
             <container-row><row-col sm="4">
@@ -206,16 +180,6 @@ along with this software (see the LICENSE.md file). If not, see
                 <field name="detail"><default-field><display/></default-field></field>
             </form-list>
 
-<!--            <form-list name="EsServerInfoList" list="esServerInfoList" skip-form="true">-->
-<!--                <field name="clientClusterName"><default-field title="Elastic Facade Cluster"><display/></default-field></field>-->
-<!--                <field name="clusterLocation"><default-field title="Location"><display/></default-field></field>-->
-<!--                <field name="esVersion" from="version?.number"><default-field title="ES Version"><display/></default-field></field>-->
-<!--                <field name="name"><default-field title="ES Name"><display/></default-field></field>-->
-<!--                <field name="cluster_name"><default-field title="ES Cluster"><display/></default-field></field>-->
-<!--                <field name="esFlavor" from="version?.build_flavor"><default-field title="ES Flavor"><display/></default-field></field>-->
-<!--                <field name="esMinWireCompat" from="version?.minimum_wire_compatibility_version"><default-field title="Wire Compat"><display/></default-field></field>-->
-<!--                <field name="esMinIndexCompat" from="version?.minimum_index_compatibility_version"><default-field title="Index Compat"><display/></default-field></field>-->
-<!--            </form-list>-->
 
             <label text="Framework: ${runtimeVersionMap.framework.toString()}" condition="runtimeVersionMap?.framework" type="div"/>
             <label text="Runtime: ${runtimeVersionMap.runtime.toString()}" condition="runtimeVersionMap?.runtime" type="div"/>

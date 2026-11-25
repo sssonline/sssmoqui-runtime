@@ -92,8 +92,6 @@ along with this software (see the LICENSE.md file). If not, see
                     <field name="dataDocumentId"><default-field><hidden/></default-field></field>
                     <field name="fieldPath"><default-field><text-line/></default-field></field>
                     <field name="fieldNameAlias"><default-field title="Alias"><text-line size="20"/></default-field></field>
-                    <field name="sortable"><default-field title="Sortable">
-                        <drop-down allow-empty="true"><option key="N"/><option key="Y"/></drop-down></default-field></field>
                     <field name="functionName"><default-field title="Function"><drop-down allow-empty="true">
                         <list-options list="funcOptions"/></drop-down></default-field></field>
                     <field name="sequenceNum"><default-field title="Sequence"><text-line size="2"/></default-field></field>
@@ -119,8 +117,6 @@ along with this software (see the LICENSE.md file). If not, see
                 </default-field></field>
                 <field name="fieldNameAlias" from="org.moqui.util.StringUtilities.camelCaseToPretty(fieldNameAlias)"><default-field title="Alias">
                     <text-line size="20"/></default-field></field>
-                <field name="sortable"><default-field title="Sortable">
-                    <drop-down allow-empty="true"><option key="N"/><option key="Y"/></drop-down></default-field></field>
                 <field name="defaultDisplay"><default-field title="Display">
                     <drop-down allow-empty="true"><option key="Y"/><option key="N"/></drop-down></default-field></field>
                 <field name="functionName"><default-field title="Function"><drop-down allow-empty="true">

@@ -2096,6 +2096,7 @@ a => A, d => D, y => Y
             <#t><#if .node["@submit-on-select"]! == "true"> :submit-on-select="true"</#if>
             <#if isDynamicOptions>
                 options-url="${doUrlInfo.url}" value-field="${doNode["@value-field"]!"value"}" label-field="${doNode["@label-field"]!"label"}"<#if ignoreKey> :ignore-key="true"</#if><#if doNode["@depends-optional"]! == "true"> :depends-optional="true"</#if>
+                <#t><#if doNode["@depends-empty-text"]?has_content> depends-empty-text="${ec.resource.expand(doNode["@depends-empty-text"], "")?html}"</#if>
                 <#t> :depends-on="{<#list depNodeList as depNode><#local depNodeField = depNode["@field"]>'${depNode["@parameter"]!depNodeField}':'<@fieldIdByName depNodeField/>'<#sep>, </#list>}"
                 <#t> :options-parameters="{<#list doUrlParameterMap.keySet() as parameterKey><#if doUrlParameterMap.get(parameterKey)?has_content>'${Static["org.moqui.util.WebUtilities"].encodeHtmlJsSafe(parameterKey)}':'${Static["org.moqui.util.WebUtilities"].encodeHtmlJsSafe(doUrlParameterMap.get(parameterKey))}', </#if></#list>}"
                 <#t><#if doNode["@server-search"]! == "true"> :server-search="true"</#if><#if doNode["@delay"]?has_content> :server-delay="${doNode["@delay"]}"</#if>

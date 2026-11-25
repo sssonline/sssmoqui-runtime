@@ -394,7 +394,8 @@ Vue.component('container-dialog', {
             vm.isHidden = false;
 
             // Initialize Select2 dropdowns
-            jqEl.find(":not(.noResetSelect2)>select:not(.noResetSelect2)").select2({ });
+            // SSS #1366: re-init keeps a drop-down's own options (its depends-empty-text language) from sssResetOpts
+            jqEl.find(":not(.noResetSelect2)>select:not(.noResetSelect2)").each(function() { $(this).select2($(this).data('sssResetOpts') || {}); });
 
             // missing tooltips onto the visible select2 containers
             jqEl.find('select[data-title]').each(function() {
@@ -467,7 +468,7 @@ Vue.component('dynamic-dialog', {
         moqui.loadComponent(newUrl, function(comp) {
             comp.mounted = function() {
                 var jqEl = $(vm.$el);
-                jqEl.find(":not(.noResetSelect2)>select:not(.noResetSelect2)").select2({ });
+                jqEl.find(":not(.noResetSelect2)>select:not(.noResetSelect2)").each(function() { $(this).select2($(this).data('sssResetOpts') || {}); });
                 var defFocus = jqEl.find(".default-focus");
                 // console.log(defFocus);
                 if (defFocus.length) { defFocus.focus(); } else { jqEl.find('form :input:visible:first').focus(); }
@@ -1068,7 +1069,7 @@ Vue.component('drop-down', {
     props: { options:Array, value:[Array,String], combo:Boolean, allowEmpty:Boolean, prioritySearch:Boolean, multiple:String, submitOnSelect:Boolean, optionsUrl:String, ignoreKey:{type:Boolean,'default':false},
         serverSearch:{type:Boolean,'default':false}, serverDelay:{type:Number,'default':10}, serverMinLength:{type:Number,'default':1},
         optionsParameters:Object, labelField:String, valueField:String, dependsOn:Object, dependsOptional:Boolean,
-        optionsLoadInit:Boolean, form:String, tooltip:String },
+        dependsEmptyText:String, optionsLoadInit:Boolean, form:String, tooltip:String },
     data: function() { return { curData:null, s2Opts:null, lastVal:null, clearedByUser:false } },
     template: '<select :form="form" :data-title="tooltip"><slot></slot></select>',
     methods: {
@@ -1124,7 +1125,9 @@ Vue.component('drop-down', {
                     var list = moqui.isArray(data) ? data : data.options;
                     // SSS: a depends-on reload passes the initial value as term for the server; it is not a typed search,
                     //    so it doesn't drop the allow-empty choice
-                    if (list) { vm.curData = vm.processOptionList(list, null, (params && !params.dependsReload ? params.term : null)); }
+                    // SSS #1366: with depends-empty-text, a parent still blank and nothing to offer shows that text, not a lone blank row
+                    if (list && vm.dependsEmptyText && !reqData.hasAllParms && list.length === 0) { vm.curData = []; }
+                    else if (list) { vm.curData = vm.processOptionList(list, null, (params && !params.dependsReload ? params.term : null)); }
                 }});
         }
     },
@@ -1132,6 +1135,11 @@ Vue.component('drop-down', {
         var jqEl = $(this.$el);
         var vm = this;
         var opts = { minimumResultsForSearch:10 };
+        // SSS #1366: while a depends-on field is blank the open drop-down says why it is empty (depends-empty-text)
+        if (this.dependsEmptyText) {
+            opts.language = { noResults: function() { return vm.serverData().hasAllParms ? 'No results found' : vm.dependsEmptyText; } };
+            jqEl.data('sssResetOpts', { language: opts.language }); // the dialog's shown re-init keeps the text
+        }
         if (this.combo) { opts.tags = true; opts.tokenSeparators = [',']; jqEl.addClass("noResetSelect2"); /* so container-dialog's modal-shown handler doesn't clobber tag mode on .select2({}). Space removed from separators so typed values like "Black Dalia" don't get prematurely committed; comma + enter/blur still commit. */ }
         if (this.multiple === "multiple") {
             opts.multiple = true; opts.closeOnSelect = false; opts.width = "100%";

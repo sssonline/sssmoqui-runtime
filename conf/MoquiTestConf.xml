@@ -10,8 +10,6 @@
          runs never open the dev database (runtime/db/h2/moqui). Load it and test against it with -Pconf=conf/MoquiTestConf.xml.
          Keep the rest of this file in step with MoquiDevConf.xml. -->
     <default-property name="entity_ds_database" value="moquitest"/>
-    <!-- #1334: a test run's search documents go to their own indices, never the dev ones (when OpenSearch is running) -->
-    <default-property name="elasticsearch_index_prefix" value="test_"/>
 
     <default-property name="webapp_allow_origins" value="*"/>
     <default-property name="entity_empty_db_load" value="all"/>

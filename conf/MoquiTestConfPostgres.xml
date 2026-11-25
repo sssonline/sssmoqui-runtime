@@ -27,8 +27,6 @@
     <default-property name="entity_ds_host" value="localhost"/>
     <default-property name="entity_ds_port" value="5432"/>
     <default-property name="entity_ds_database" value="moquitest"/>
-    <!-- #1334: a test run's search documents go to their own indices, never the dev ones (when OpenSearch is running) -->
-    <default-property name="elasticsearch_index_prefix" value="test_"/>
     <default-property name="entity_ds_user" value="moqui"/>
     <default-property name="entity_ds_password" value="moqui"/>
     <default-property name="entity_ds_crypt_pass" value="dev-only:postgres:cba0c1639f6fd40a"/>

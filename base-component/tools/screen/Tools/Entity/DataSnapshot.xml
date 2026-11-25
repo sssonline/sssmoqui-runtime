@@ -108,7 +108,7 @@ along with this software (see the LICENSE.md file). If not, see
                     </drop-down>
                 </default-field></field>
                 <!-- NOTE: add sets of entities to exclude? maybe ArtifactHit by default? -->
-                <field name="entitiesToSkip"><default-field><drop-down allow-multiple="true" size="80" no-current-selected-key="moqui.server.ArtifactHit,moqui.server.ArtifactHitBin,moqui.entity.EntityAuditLog,basalt.service.TemporaryDownloadFile,moqui.server.instance.InstanceImageTypeEnv,moqui.test.TestNoSqlEntity">
+                <field name="entitiesToSkip"><default-field><drop-down allow-multiple="true" size="80" no-current-selected-key="moqui.server.ArtifactHit,moqui.server.ArtifactHitBin,moqui.entity.EntityAuditLog,basalt.service.TemporaryDownloadFile,moqui.server.instance.InstanceImageTypeEnv">
                     <list-options list="ec.entity.getAllEntitiesInfo('fullEntityName', null, false, true)" key="${fullEntityName}"/>
                 </drop-down></default-field></field>
                 <field name="fromDate"><default-field><date-time minute-stepping="1"/></default-field></field>
